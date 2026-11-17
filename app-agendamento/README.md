@@ -10,9 +10,11 @@ seguindo o mesmo layout dela:
 Quando você agenda pelo app, ele:
 - coloca a linha **no bloco do dia certo**, na ordem do horário (antes ou depois do “INTERVALO DE ALMOÇO”);
 - grava a data na coluna do dia da semana (ex.: quarta → colunas H/I) e a hora no formato da planilha (`8h30`, `14h`);
-- grava o valor como `R$130,00` e o serviço (padrão `HIGIENIZAÇÃO`);
+- grava o serviço (padrão `HIGIENIZAÇÃO`); a coluna de valor fica em branco;
 - se o dia ainda não existe, cria o bloco do dia (com a linha de almoço) e, se precisar, o cabeçalho da semana nova;
 - copia a formatação (cores, negrito) das linhas que já existem.
+
+Cada dia mostra os horários fixos da planilha (**8h, 8h30, 10h30, 14h, 16h**): os vagos aparecem como **Livre** — é só tocar para agendar.
 
 No app também dá para **ver a semana**, **editar**, **excluir** e chamar o cliente no **WhatsApp**.
 
@@ -42,7 +44,7 @@ No topo do `Code.gs`:
 - `SPREADSHEET_ID` — só precisa preencher se o script for criado fora da planilha.
 - `ALMOCO_TEXTO` / `ALMOCO_INICIO_MIN` — horário do almoço.
 
-No `Index.html`, as listas `OBS` (atalhos de observação) e `HORAS` (atalhos de horário) podem ser trocadas.
+No `Index.html`, as listas `OBS` (atalhos de observação) e `HORARIOS` (horários fixos do dia) podem ser trocadas.
 
 ## Observações
 - Domingo não tem coluna na planilha, então o app não deixa agendar no domingo.

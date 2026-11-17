@@ -76,6 +76,7 @@ function horaParaPlanilha_(hhmm) {
 }
 /** 130 -> "R$130,00" (formato usado na planilha) */
 function valorParaPlanilha_(v) {
+  if (v === undefined || v === null || String(v).trim() === '') return '';
   var n = Number(String(v).replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.'));
   if (isNaN(n)) return '';
   return 'R$' + n.toFixed(2).replace('.', ',');
@@ -94,7 +95,7 @@ function separarNome_(txt) {
   return { nome: s.slice(0, i).trim(), obs: s.slice(i + 3).trim() };
 }
 function juntarNome_(nome, obs) {
-  nome = String(nome || '').trim() || 'Cliente';
+  nome = String(nome || '').trim();
   obs = String(obs || '').trim();
   return obs ? nome + ' - ' + obs : nome;
 }
@@ -207,14 +208,13 @@ function editarAgendamento(row, chave, dados) {
     var novaHora = horaParaPlanilha_(dados.hora);
     if (atual.data === dados.data && horaParaMin_(atual.hora) === horaParaMin_(novaHora)) {
       // Mesmo dia e horário: atualiza a linha no lugar
-      sh.getRange(row, COL_NOME, 1, 3).setValues([[
-        juntarNome_(dados.nome, dados.obs), String(dados.telefone || ''), valorParaPlanilha_(dados.valor)
-      ]]);
+      sh.getRange(row, COL_NOME, 1, 2).setValues([[juntarNome_(dados.nome, dados.obs), String(dados.telefone || '')]]);
       sh.getRange(row, COL_SERV).setValue(String(dados.servico || '').trim().toUpperCase());
       SpreadsheetApp.flush();
       return { ok: true, row: row };
     }
     // Mudou dia/hora: remove e insere de novo na posição certa
+    if (dados.valor === undefined && atual.valorTxt) dados.valor = atual.valorTxt; // mantém o valor que já estava
     sh.deleteRow(row);
     var nova = inserir_(dados);
     SpreadsheetApp.flush();
@@ -242,7 +242,8 @@ function excluirAgendamento(row, chave) {
 // ---- Internos ---------------------------------------------------------------
 
 function validar_(d) {
-  if (!d || !d.data || !/^\d{4}-\d{2}-\d{2}$/.test(d.data)) throw new Error('Informe a data.');
+  if (!d || !String(d.nome || '').trim()) throw new Error('Coloque o nome do cliente.');
+  if (!d.data || !/^\d{4}-\d{2}-\d{2}$/.test(d.data)) throw new Error('Informe a data.');
   if (!d.hora || !/^\d{1,2}:\d{2}$/.test(d.hora)) throw new Error('Informe o horário.');
   if (weekdayFromIso_(d.data) < 0) throw new Error('A planilha não tem coluna de domingo. Escolha de segunda a sábado.');
 }
