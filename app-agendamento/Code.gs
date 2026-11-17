@@ -13,13 +13,20 @@
  */
 
 // ---- Configuração -----------------------------------------------------------
-// Se o script for criado DENTRO da planilha (Extensões > Apps Script), deixe vazio.
-// Se for um projeto separado, cole aqui o ID da planilha.
-var SPREADSHEET_ID = '';
+// ID da planilha (o que vem no link, entre /d/ e /edit). Vazio = usa a planilha onde o script foi criado.
+// Planilha atual: docs.google.com/spreadsheets/d/1EaHMWG1U7BeiJB25ZTMCjAchtUdCIwBamLpiR-M8kws
+var SPREADSHEET_ID = '1EaHMWG1U7BeiJB25ZTMCjAchtUdCIwBamLpiR-M8kws';
 var SHEET_NAME = 'Página1';
 var ALMOCO_TEXTO = '12h10 – 13:40h';
 var ALMOCO_INICIO_MIN = 12 * 60 + 10; // 12h10
 var NUM_COLS = 16; // A..P
+// Horários fixos do dia (minutos) e quantas equipes atendem em cada um
+var HORARIOS_MIN = [8 * 60 + 30, 10 * 60 + 30, 14 * 60, 16 * 60];
+var NUM_EQUIPES = 2;
+var TOLERANCIA_MIN = 5; // a planilha usa 8h29, 8h31... para o mesmo horário
+// Linha "vaga livre": nome só "Cliente" e sem telefone
+var NOME_VAGA = 'Cliente';
+var SERVICO_PADRAO = 'HIGIENIZAÇÃO';
 
 var COL_NOME = 1, COL_TEL = 2, COL_VALOR = 3, COL_SERV = 16;
 function colData_(w) { return 4 + 2 * w; }  // w: 0=Seg ... 5=Sáb
@@ -62,9 +69,9 @@ function mondayOf_(s) {
   return d.toISOString().slice(0, 10);
 }
 
-/** "8h30", "08h31", "14h ", "14:00" -> minutos desde 00:00 */
+/** "8h30", "08h31", "14h ", "14:00", "16" -> minutos desde 00:00 */
 function horaParaMin_(txt) {
-  var m = String(txt || '').trim().match(/^(\d{1,2})\s*[h:]\s*(\d{0,2})/i);
+  var m = String(txt || '').trim().match(/^(\d{1,2})(?:\s*[h:]\s*(\d{0,2}))?/i);
   if (!m) return null;
   return (+m[1]) * 60 + (m[2] ? +m[2] : 0);
 }
@@ -136,6 +143,7 @@ function lerLinhas_(sh, tz) {
           linha.valorTxt = String(d[2]).trim();
           linha.valor = valorParaNumero_(d[2]);
           linha.servico = String(d[COL_SERV - 1]).trim();
+          linha.livre = ehVaga_(d[0], d[1]);
           break;
         }
       }
@@ -146,8 +154,19 @@ function lerLinhas_(sh, tz) {
   return out;
 }
 
+function ehVaga_(nomeTxt, telTxt) {
+  return String(nomeTxt || '').replace(/\s+/g, ' ').trim().toLowerCase() === NOME_VAGA.toLowerCase() &&
+    String(telTxt || '').replace(/\D/g, '') === '';
+}
+function slotDe_(min) {
+  if (min == null) return null;
+  for (var i = 0; i < HORARIOS_MIN.length; i++) if (Math.abs(HORARIOS_MIN[i] - min) <= TOLERANCIA_MIN) return HORARIOS_MIN[i];
+  return null;
+}
+function mesmoHorario_(a, b) { return a != null && b != null && Math.abs(a - b) <= TOLERANCIA_MIN; }
+
 function publico_(l) {
-  return {
+  return { livre: !!l.livre,
     row: l.row, data: l.data, hora: l.hora, min: l.min, nome: l.nome, obs: l.obs,
     telefone: l.telefone, valor: l.valor, valorTxt: l.valorTxt, servico: l.servico,
     chave: chave_(l)
@@ -189,11 +208,52 @@ function criarAgendamento(dados) {
   var lock = LockService.getDocumentLock() || LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    var row = inserir_(dados);
+    var row = agendar_(dados);
     SpreadsheetApp.flush();
     return { ok: true, row: row };
   } finally {
     lock.releaseLock();
+  }
+}
+
+/** Preenche uma vaga livre do horário; se não houver, cria a linha. */
+function agendar_(dados) {
+  var sh = sheet_(), tz = tz_();
+  var linhas = lerLinhas_(sh, tz);
+  var novoMin = horaParaMin_(horaParaPlanilha_(dados.hora));
+  var vaga = null;
+  // Vaga escolhida no app (ex.: "Equipe 2 · Livre")
+  if (dados.vagaRow) {
+    var v = linhas[dados.vagaRow - 1];
+    if (v && v.tipo === 'appt' && v.livre && chave_(v) === dados.vagaChave && v.data === dados.data && mesmoHorario_(v.min, novoMin)) vaga = v;
+  }
+  // Senão, a primeira vaga livre do mesmo dia e horário
+  if (!vaga) {
+    vaga = linhas.filter(function (l) {
+      return l.tipo === 'appt' && l.livre && l.data === dados.data && mesmoHorario_(l.min, novoMin);
+    })[0] || null;
+  }
+  if (vaga) {
+    preencher_(sh, vaga.row, dados);
+    return vaga.row;
+  }
+  return inserir_(dados);
+}
+
+function preencher_(sh, row, dados) {
+  sh.getRange(row, COL_NOME, 1, 2).setValues([[juntarNome_(dados.nome, dados.obs), String(dados.telefone || '').trim()]]);
+  sh.getRange(row, COL_SERV).setValue(String(dados.servico || SERVICO_PADRAO).trim().toUpperCase());
+}
+
+/** Cancela: a linha volta a ser vaga livre ("Cliente", sem telefone). Linhas extras são apagadas. */
+function liberar_(sh, linhas, l) {
+  var slot = slotDe_(l.min);
+  var noHorario = linhas.filter(function (x) { return x.tipo === 'appt' && x.data === l.data && mesmoHorario_(x.min, l.min); }).length;
+  if (slot != null && noHorario <= NUM_EQUIPES) {
+    sh.getRange(l.row, COL_NOME, 1, 2).setValues([[NOME_VAGA, '']]);
+    sh.getRange(l.row, COL_SERV).setValue(SERVICO_PADRAO);
+  } else {
+    sh.deleteRow(l.row);
   }
 }
 
@@ -206,17 +266,16 @@ function editarAgendamento(row, chave, dados) {
     var sh = sheet_(), tz = tz_();
     var atual = conferir_(sh, tz, row, chave);
     var novaHora = horaParaPlanilha_(dados.hora);
-    if (atual.data === dados.data && horaParaMin_(atual.hora) === horaParaMin_(novaHora)) {
+    if (atual.data === dados.data && mesmoHorario_(atual.min, horaParaMin_(novaHora))) {
       // Mesmo dia e horário: atualiza a linha no lugar
-      sh.getRange(row, COL_NOME, 1, 2).setValues([[juntarNome_(dados.nome, dados.obs), String(dados.telefone || '')]]);
-      sh.getRange(row, COL_SERV).setValue(String(dados.servico || '').trim().toUpperCase());
+      preencher_(sh, row, dados);
       SpreadsheetApp.flush();
       return { ok: true, row: row };
     }
-    // Mudou dia/hora: remove e insere de novo na posição certa
-    if (dados.valor === undefined && atual.valorTxt) dados.valor = atual.valorTxt; // mantém o valor que já estava
-    sh.deleteRow(row);
-    var nova = inserir_(dados);
+    // Mudou dia/hora: libera a vaga antiga e agenda no novo horário
+    liberar_(sh, lerLinhas_(sh, tz), atual);
+    delete dados.vagaRow;
+    var nova = agendar_(dados);
     SpreadsheetApp.flush();
     return { ok: true, row: nova };
   } finally {
@@ -230,8 +289,8 @@ function excluirAgendamento(row, chave) {
   lock.waitLock(20000);
   try {
     var sh = sheet_(), tz = tz_();
-    conferir_(sh, tz, row, chave);
-    sh.deleteRow(row);
+    var l = conferir_(sh, tz, row, chave);
+    liberar_(sh, lerLinhas_(sh, tz), l);
     SpreadsheetApp.flush();
     return { ok: true };
   } finally {
@@ -251,7 +310,7 @@ function validar_(d) {
 function conferir_(sh, tz, row, chave) {
   var linhas = lerLinhas_(sh, tz);
   var l = linhas[row - 1];
-  if (!l || l.tipo !== 'appt' || chave_(l) !== chave) {
+  if (!l || l.tipo !== 'appt' || l.livre || chave_(l) !== chave) {
     throw new Error('A planilha foi alterada. Atualize a lista e tente de novo.');
   }
   return l;
@@ -292,7 +351,7 @@ function inserir_(dados) {
     }
     if (!almoco && primeiro > 1 && linhas[primeiro - 2].tipo === 'lunch') almoco = primeiro - 1;
 
-    var antes = doDia.filter(function (l) { return l.min != null && l.min <= novoMin; });
+    var antes = doDia.filter(function (l) { return l.min != null && l.min <= novoMin + TOLERANCIA_MIN; });
     var depoisDe; // insere depois desta linha
     if (antes.length) depoisDe = antes[antes.length - 1].row;
     else depoisDe = primeiro - 1;
@@ -301,15 +360,29 @@ function inserir_(dados) {
       if (novoMin >= ALMOCO_INICIO_MIN && depoisDe < almoco) depoisDe = almoco;
       if (novoMin < ALMOCO_INICIO_MIN && depoisDe >= almoco) depoisDe = almoco - 1;
     }
-    return inserirLinhas_(sh, depoisDe, [{ tipo: 'appt', valores: valores }],
+    return inserirLinhas_(sh, depoisDe, [{ tipo: 'appt', valores: valores, alvo: true }],
       { appt: modeloAppt, header: modeloHeader, lunch: modeloLunch });
   }
 
-  // ---- Não existe bloco para o dia: cria um novo ----
+  // ---- Não existe bloco para o dia: cria o dia inteiro com as vagas (2 por horário) ----
   var linhaAlmoco = linhaAlmoco_(w);
-  var blocoDia = novoMin < ALMOCO_INICIO_MIN
-    ? [{ tipo: 'appt', valores: valores }, { tipo: 'lunch', valores: linhaAlmoco }]
-    : [{ tipo: 'lunch', valores: linhaAlmoco }, { tipo: 'appt', valores: valores }];
+  var horarios = HORARIOS_MIN.slice();
+  if (slotDe_(novoMin) == null) horarios.push(novoMin);
+  horarios.sort(function (a, b) { return a - b; });
+  var blocoDia = [], almocoPosto = false, colocado = false;
+  horarios.forEach(function (m) {
+    if (!almocoPosto && m >= ALMOCO_INICIO_MIN) { blocoDia.push({ tipo: 'lunch', valores: linhaAlmoco }); almocoPosto = true; }
+    var ehFixo = HORARIOS_MIN.indexOf(m) >= 0;
+    var n = ehFixo ? NUM_EQUIPES : 1;
+    for (var e = 0; e < n; e++) {
+      if (!colocado && (m === novoMin || (!ehFixo ? false : mesmoHorario_(m, novoMin)))) {
+        blocoDia.push({ tipo: 'appt', valores: valores, alvo: true }); colocado = true;
+      } else {
+        blocoDia.push({ tipo: 'appt', valores: linhaVaga_(w, iso, tz, m) });
+      }
+    }
+  });
+  if (!almocoPosto) blocoDia.push({ tipo: 'lunch', valores: linhaAlmoco });
   var semana = mondayOf_(iso);
 
   var anterior = null, proximo = null;
@@ -343,6 +416,16 @@ function inserir_(dados) {
   return inserirLinhas_(sh, Math.max(sh.getLastRow(), 2), [{ tipo: 'header' }].concat(blocoDia), modelos_());
 
   function modelos_() { return { appt: modeloAppt, header: modeloHeader, lunch: modeloLunch }; }
+}
+
+function linhaVaga_(w, iso, tz, min) {
+  var v = [];
+  for (var c = 0; c < NUM_COLS; c++) v.push('');
+  v[COL_NOME - 1] = NOME_VAGA;
+  v[colData_(w) - 1] = parseIso_(iso, tz);
+  v[colHora_(w) - 1] = horaParaPlanilha_(Math.floor(min / 60) + ':' + (min % 60));
+  v[COL_SERV - 1] = SERVICO_PADRAO;
+  return v;
 }
 
 function linhaAlmoco_(w) {
@@ -411,7 +494,7 @@ function inserirLinhas_(sh, depoisDe, itens, modelos) {
           sh.getRange(r, colHora_(w)).setNumberFormat('@').setValue(it.valores[colHora_(w) - 1]);
         }
       }
-      linhaAppt = r;
+      if (it.alvo || (linhaAppt === null && !itens.some(function (z) { return z.alvo; }))) linhaAppt = r;
     }
   });
   return linhaAppt;

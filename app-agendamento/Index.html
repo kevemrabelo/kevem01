@@ -207,7 +207,7 @@
   <div id="dBody"></div>
   <div class="contact" id="dContact"></div>
   <div class="actions">
-    <button class="btn danger" id="btnDelete" aria-label="Excluir">Excluir</button>
+    <button class="btn danger" id="btnDelete" aria-label="Cancelar agendamento">Cancelar</button>
     <button class="btn primary" id="btnEdit">Editar</button>
   </div>
 </div>
@@ -250,8 +250,13 @@
   // agendamentos do dia no mesmo horário (a planilha usa 8h29, 8h31... então tolera 5 min)
   function ocupados(diaIso, m) {
     return state.itens.filter(function (x) {
-      return x.data === diaIso && x.min != null && Math.abs(x.min - m) <= 5 && (!state.editando || x.row !== state.editando.row);
+      return !x.livre && x.data === diaIso && x.min != null && Math.abs(x.min - m) <= 5 && (!state.editando || x.row !== state.editando.row);
     }).sort(function (a, b) { return a.row - b.row; });
+  }
+  // todas as linhas do horário (ocupadas e vagas livres da planilha), na ordem da planilha
+  function linhasDoHorario(diaIso, m) {
+    return state.itens.filter(function (x) { return x.data === diaIso && x.min != null && Math.abs(x.min - m) <= 5; })
+      .sort(function (a, b) { return a.row - b.row; });
   }
   function vagasTexto(n) {
     var v = EQUIPES.length - n;
@@ -287,24 +292,26 @@
     var html = '';
     for (var i = 0; i < 6; i++) {
       var d = addDays(s, i), k = iso(d);
-      var n = state.itens.filter(function (x) { return x.data === k; }).length;
+      var n = state.itens.filter(function (x) { return x.data === k && !x.livre; }).length;
       html += '<button class="day' + (i === state.dia ? ' sel' : '') + (k === iso(hoje) ? ' today' : '') + '" data-i="' + i + '">' +
         '<small>' + DIAS[i] + '</small><b>' + d.getDate() + '</b><i>' + (n ? n + ' ag.' : '') + '</i></button>';
     }
     $('days').innerHTML = html;
 
     var diaIso = iso(addDays(s, state.dia));
-    var lista = state.itens.filter(function (x) { return x.data === diaIso; });
+    var lista = state.itens.filter(function (x) { return x.data === diaIso && !x.livre; });
     $('dayTitle').textContent = DIAS_LONGOS[state.dia] + ', ' + br(diaIso).slice(0, 5);
     // Cada horário fixo tem uma vaga por equipe (na ordem em que estão na planilha)
     var linhas = [], usados = {}, livres = 0;
     HORARIOS.forEach(function (h) {
-      var m = hhmmToMin(h), occ = ocupados(diaIso, m);
-      EQUIPES.forEach(function (eq, i) {
-        if (occ[i]) { usados[occ[i].row] = 1; linhas.push({ min: m, ord: i, x: occ[i], equipe: eq }); }
-        else { livres++; linhas.push({ min: m, ord: i, livre: h, equipe: eq }); }
-      });
-      occ.slice(EQUIPES.length).forEach(function (x, j) { usados[x.row] = 1; linhas.push({ min: m, ord: 9 + j, x: x, equipe: 'Extra' }); });
+      var m = hhmmToMin(h), todas = linhasDoHorario(diaIso, m);
+      var n = Math.max(EQUIPES.length, todas.length);
+      for (var i = 0; i < n; i++) {
+        var x = todas[i], eq = EQUIPES[i] || 'Extra';
+        if (x) usados[x.row] = 1;
+        if (x && !x.livre) linhas.push({ min: m, ord: i, x: x, equipe: eq });
+        else { livres++; linhas.push({ min: m, ord: i, livre: h, vaga: x || null, equipe: eq }); }
+      }
     });
     // Agendamentos fora dos horários fixos
     lista.forEach(function (x) { if (!usados[x.row]) linhas.push({ min: x.min == null ? 9999 : x.min, ord: 0, x: x }); });
@@ -318,7 +325,7 @@
         almocoFeito = true;
       }
       if (l.livre) {
-        out += '<div class="card free" data-livre="' + l.livre + '">' +
+        out += '<div class="card free" data-livre="' + l.livre + '"' + (l.vaga ? ' data-vrow="' + l.vaga.row + '"' : '') + '>' +
           '<div class="time">' + fmtHora(l.min) + '</div>' +
           '<div class="info"><div class="name">Livre</div><div class="meta"><span class="eq">' + l.equipe + '</span><span>Toque para agendar</span></div></div>' +
           '<div class="plus">+</div></div>';
@@ -390,8 +397,9 @@
     h.innerHTML = msgs.map(esc).join('<br>'); h.style.display = msgs.length ? 'block' : 'none';
   }
 
-  function novo(hora) {
+  function novo(hora, vaga) {
     state.editando = null;
+    state.vaga = vaga || null;
     $('formTitle').textContent = 'Novo agendamento';
     $('fNome').value = ''; $('fObs').value = ''; $('fTel').value = '';
     $('fData').value = iso(addDays(state.semana, state.dia)); $('fHora').value = hora || '';
@@ -399,7 +407,7 @@
     montaHoras(); checar(); abrir('formSheet');
   }
   function editar(x) {
-    state.editando = x;
+    state.editando = x; state.vaga = null;
     $('formTitle').textContent = 'Editar agendamento';
     $('fNome').value = x.nome || ''; $('fObs').value = x.obs || ''; $('fTel').value = x.telefone || '';
     $('fData').value = x.data; $('fHora').value = x.min != null ? minToHHMM(x.min) : '';
@@ -418,6 +426,8 @@
     if (!dados.data || !dados.hora) return toast('Escolha a data e o horário', true);
     if (fromIso(dados.data).getDay() === 0) return toast('Domingo não é permitido na planilha', true);
     var btn = $('btnSave'); btn.disabled = true; btn.textContent = 'Salvando…';
+    var vg = state.vaga;
+    if (vg && vg.data === dados.data && Math.abs(vg.min - hhmmToMin(dados.hora)) <= 5) { dados.vagaRow = vg.row; dados.vagaChave = vg.chave; }
     var p = state.editando
       ? call('editarAgendamento', state.editando.row, state.editando.chave, dados)
       : call('criarAgendamento', dados);
@@ -435,7 +445,10 @@
   // ---------- Detalhes ----------
   $('list').addEventListener('click', function (e) {
     var c = e.target.closest('.card'); if (!c) return;
-    if (c.dataset.livre) return novo(c.dataset.livre);
+    if (c.dataset.livre) {
+      var vg = c.dataset.vrow ? state.itens.filter(function (i) { return String(i.row) === c.dataset.vrow; })[0] : null;
+      return novo(c.dataset.livre, vg);
+    }
     var x = state.itens.filter(function (i) { return String(i.row) === c.dataset.row; })[0]; if (!x) return;
     state.atual = x;
     $('dTitle').textContent = (x.nome || 'Sem nome') + (x.obs ? ' – ' + x.obs : '');
@@ -452,11 +465,11 @@
   $('btnEdit').onclick = function () { editar(state.atual); };
   $('btnDelete').onclick = function () {
     var x = state.atual;
-    if (!confirm('Excluir o agendamento de ' + (x.nome || 'sem nome') + ' às ' + fmtHora(x.min, x.hora) + '? A linha será apagada da planilha.')) return;
+    if (!confirm('Excluir o agendamento de ' + (x.nome || 'sem nome') + ' às ' + fmtHora(x.min, x.hora) + '? A vaga volta a ficar livre na planilha.')) return;
     var b = $('btnDelete'); b.disabled = true;
     call('excluirAgendamento', x.row, x.chave).then(function () {
-      fechar(); toast('Agendamento excluído'); return carregar();
-    }).catch(function (err) { toast((err && err.message) || 'Erro ao excluir', true); })
+      fechar(); toast('Agendamento cancelado — vaga livre'); return carregar();
+    }).catch(function (err) { toast((err && err.message) || 'Erro ao cancelar', true); })
       .then(function () { b.disabled = false; });
   };
 
@@ -479,6 +492,10 @@
       rows.push({ row: seq++, data: iso(addDays(base, r[0])), hora: fmtHora(m), min: m, nome: r[2], obs: r[3],
         telefone: r[4], servico: 'HIGIENIZAÇÃO' });
     });
+    [[1, '10:30'], [1, '10:30']].forEach(function (r) {
+      var m = hhmmToMin(r[1]);
+      rows.push({ row: seq++, data: iso(addDays(base, r[0])), hora: fmtHora(m), min: m, nome: 'Cliente', obs: '', telefone: '', servico: 'HIGIENIZAÇÃO', livre: true });
+    });
     rows.forEach(function (r) { r.chave = 'k' + r.row; });
     function ok(v) { return new Promise(function (r) { setTimeout(function () { r(v); }, 250); }); }
     function mk(d, row) {
@@ -492,9 +509,18 @@
           .sort(function (a, b) { return a.data < b.data ? -1 : a.data > b.data ? 1 : a.min - b.min; }).map(function (r) { return Object.assign({}, r); }));
       },
       listarServicos: function () { return ok(['HIGIENIZAÇÃO']); },
-      criarAgendamento: function (d) { rows.push(mk(d, seq++)); return ok({ ok: true }); },
+      criarAgendamento: function (d) {
+        var v = rows.filter(function (r) { return r.livre && r.data === d.data && Math.abs(r.min - hhmmToMin(d.hora)) <= 5; })
+          .sort(function (a, b) { return (b.row === d.vagaRow) - (a.row === d.vagaRow) || a.row - b.row; })[0];
+        if (v) { rows = rows.filter(function (r) { return r !== v; }); rows.push(mk(Object.assign({}, d, { hora: minToHHMM(v.min) }), v.row)); }
+        else rows.push(mk(d, seq++));
+        return ok({ ok: true });
+      },
       editarAgendamento: function (row, k, d) { rows = rows.filter(function (r) { return r.row !== row; }); rows.push(mk(d, row)); return ok({ ok: true }); },
-      excluirAgendamento: function (row) { rows = rows.filter(function (r) { return r.row !== row; }); return ok({ ok: true }); }
+      excluirAgendamento: function (row) {
+        rows.forEach(function (r) { if (r.row === row) { r.livre = true; r.nome = 'Cliente'; r.obs = ''; r.telefone = ''; } });
+        return ok({ ok: true });
+      }
     };
   })();
 

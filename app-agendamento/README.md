@@ -7,16 +7,22 @@ seguindo o mesmo layout dela:
 |---|---|---|---|---|---|---|---|---|---|
 | Cliente (ex.: `Cliente - retorno`) | Telefone | Valor do serviço | Segunda (data/hora) | Terça | Quarta | Quinta | Sexta | Sábado | Serviço |
 
+Planilha usada: https://docs.google.com/spreadsheets/d/1EaHMWG1U7BeiJB25ZTMCjAchtUdCIwBamLpiR-M8kws
+
+**Vagas:** cada dia tem os horários **8h30, 10h30, 14h e 16h**, com **2 vagas em cada — uma por equipe**
+(a 1ª linha do horário é a Equipe 1, a 2ª é a Equipe 2). Na planilha, a vaga livre é a linha que tem só
+`Cliente` e nenhum telefone. No app ela aparece em verde como **Livre** — é só tocar para agendar.
+
 Quando você agenda pelo app, ele:
-- coloca a linha **no bloco do dia certo**, na ordem do horário (antes ou depois do “INTERVALO DE ALMOÇO”);
-- grava a data na coluna do dia da semana (ex.: quarta → colunas H/I) e a hora no formato da planilha (`8h30`, `14h`);
-- grava o serviço (padrão `HIGIENIZAÇÃO`); a coluna de valor fica em branco;
-- se o dia ainda não existe, cria o bloco do dia (com a linha de almoço) e, se precisar, o cabeçalho da semana nova;
-- copia a formatação (cores, negrito) das linhas que já existem.
+- **preenche a vaga livre** daquele horário (nome, observação, telefone e serviço) — não cria linha nova;
+- se o horário estiver lotado, coloca uma linha extra logo depois dele;
+- se o dia ainda não existe na planilha, cria o dia inteiro com as 8 vagas (2 por horário) e a linha de almoço,
+  e, se for semana nova, o cabeçalho da semana;
+- a data e a hora ficam como estão na planilha; a coluna de valor não é mexida.
 
-Cada dia mostra os horários fixos da planilha (**8h30, 10h30, 14h e 16h**), com **2 vagas em cada — uma para cada equipe**. O primeiro agendamento do horário fica na Equipe 1 e o segundo na Equipe 2 (na ordem das linhas da planilha). Vagas livres aparecem como **Livre** — é só tocar para agendar.
+**Cancelar** um agendamento faz a linha voltar a ser vaga livre (`Cliente`, sem telefone).
 
-No app também dá para **ver a semana**, **editar**, **excluir** e chamar o cliente no **WhatsApp**.
+No app também dá para **ver a semana**, **editar**, **cancelar** e chamar o cliente no **WhatsApp**.
 
 ## Como instalar (uma vez só, uns 5 minutos)
 
@@ -41,7 +47,8 @@ No app também dá para **ver a semana**, **editar**, **excluir** e chamar o cli
 
 No topo do `Code.gs`:
 - `SHEET_NAME` — nome da aba (hoje `Página1`).
-- `SPREADSHEET_ID` — só precisa preencher se o script for criado fora da planilha.
+- `SPREADSHEET_ID` — ID da planilha (já vem preenchido com a planilha atual).
+- `HORARIOS_MIN` / `NUM_EQUIPES` — horários fixos e quantas equipes por horário.
 - `ALMOCO_TEXTO` / `ALMOCO_INICIO_MIN` — horário do almoço.
 
 No `Index.html`, as listas `OBS` (atalhos de observação) e `HORARIOS` (horários fixos do dia) e `EQUIPES` (nomes das equipes) podem ser trocadas.
