@@ -65,6 +65,8 @@
   .card.free .time { background: var(--free-soft); color: var(--free); }
   .card.free .name { color: var(--free); }
   .card.free .plus { color: var(--free); font-weight: 700; font-size: 22px; }
+  .eq { font-weight: 700; color: var(--brand); }
+  .card.free .eq { color: var(--free); }
   .chip small { display: block; font-size: 10px; font-weight: 600; }
   .chip.livre { border-color: var(--free-line); color: var(--free); background: var(--free-soft); }
   .chip.ocupado { opacity: .6; }
@@ -242,12 +244,18 @@
   function digits(s) { return String(s || '').replace(/\D/g, ''); }
 
   // ---------- Horários fixos (iguais aos da planilha) ----------
-  var HORARIOS = ['08:00', '08:30', '10:30', '14:00', '16:00'];
+  var HORARIOS = ['08:30', '10:30', '14:00', '16:00'];
+  // Cada horário tem uma vaga por equipe
+  var EQUIPES = ['Equipe 1', 'Equipe 2'];
   // agendamentos do dia no mesmo horário (a planilha usa 8h29, 8h31... então tolera 5 min)
   function ocupados(diaIso, m) {
     return state.itens.filter(function (x) {
       return x.data === diaIso && x.min != null && Math.abs(x.min - m) <= 5 && (!state.editando || x.row !== state.editando.row);
-    });
+    }).sort(function (a, b) { return a.row - b.row; });
+  }
+  function vagasTexto(n) {
+    var v = EQUIPES.length - n;
+    return v <= 0 ? 'lotado' : v === 1 ? '1 vaga' : v + ' vagas';
   }
 
   // ---------- Estado ----------
@@ -288,16 +296,20 @@
     var diaIso = iso(addDays(s, state.dia));
     var lista = state.itens.filter(function (x) { return x.data === diaIso; });
     $('dayTitle').textContent = DIAS_LONGOS[state.dia] + ', ' + br(diaIso).slice(0, 5);
-    var livres = HORARIOS.filter(function (h) { return !ocupados(diaIso, hhmmToMin(h)).length; }).length;
-    $('dayTotal').textContent = lista.length + ' agendado(s) · ' + livres + ' livre(s)';
-
-    // Junta os agendamentos com os horários fixos que estão livres
-    var linhas = lista.map(function (x) { return { min: x.min == null ? 9999 : x.min, x: x }; });
+    // Cada horário fixo tem uma vaga por equipe (na ordem em que estão na planilha)
+    var linhas = [], usados = {}, livres = 0;
     HORARIOS.forEach(function (h) {
-      var m = hhmmToMin(h);
-      if (!ocupados(diaIso, m).length) linhas.push({ min: m, livre: h });
+      var m = hhmmToMin(h), occ = ocupados(diaIso, m);
+      EQUIPES.forEach(function (eq, i) {
+        if (occ[i]) { usados[occ[i].row] = 1; linhas.push({ min: m, ord: i, x: occ[i], equipe: eq }); }
+        else { livres++; linhas.push({ min: m, ord: i, livre: h, equipe: eq }); }
+      });
+      occ.slice(EQUIPES.length).forEach(function (x, j) { usados[x.row] = 1; linhas.push({ min: m, ord: 9 + j, x: x, equipe: 'Extra' }); });
     });
-    linhas.sort(function (a, b) { return a.min - b.min || (a.livre ? 1 : -1); });
+    // Agendamentos fora dos horários fixos
+    lista.forEach(function (x) { if (!usados[x.row]) linhas.push({ min: x.min == null ? 9999 : x.min, ord: 0, x: x }); });
+    linhas.sort(function (a, b) { return a.min - b.min || a.ord - b.ord; });
+    $('dayTotal').textContent = lista.length + ' agendado(s) · ' + livres + ' vaga(s)';
     var out = '', almocoFeito = false;
     linhas.forEach(function (l) {
       var x = l.x;
@@ -308,14 +320,14 @@
       if (l.livre) {
         out += '<div class="card free" data-livre="' + l.livre + '">' +
           '<div class="time">' + fmtHora(l.min) + '</div>' +
-          '<div class="info"><div class="name">Livre</div><div class="meta"><span>Toque para agendar</span></div></div>' +
+          '<div class="info"><div class="name">Livre</div><div class="meta"><span class="eq">' + l.equipe + '</span><span>Toque para agendar</span></div></div>' +
           '<div class="plus">+</div></div>';
         return;
       }
       out += '<div class="card" data-row="' + x.row + '">' +
         '<div class="time">' + esc(fmtHora(x.min, x.hora)) + '</div>' +
         '<div class="info"><div class="name">' + esc(x.nome || 'Sem nome') + (x.obs ? '<span class="tag">' + esc(x.obs) + '</span>' : '') + '</div>' +
-        '<div class="meta"><span>' + esc(x.telefone || 'sem telefone') + '</span><span>' + esc(x.servico || '') + '</span></div></div></div>';
+        '<div class="meta">' + (l.equipe ? '<span class="eq">' + l.equipe + '</span>' : '') + '<span>' + esc(x.telefone || 'sem telefone') + '</span><span>' + esc(x.servico || '') + '</span></div></div></div>';
     });
     $('list').innerHTML = out;
   }
@@ -353,8 +365,8 @@
     var d = $('fData').value;
     $('horaChips').innerHTML = HORARIOS.map(function (h) {
       var n = d ? ocupados(d, hhmmToMin(h)).length : 0;
-      return '<button type="button" class="chip ' + (n ? 'ocupado' : 'livre') + '" data-v="' + h + '">' +
-        fmtHora(hhmmToMin(h)) + '<small>' + (n ? n + ' agendado' + (n > 1 ? 's' : '') : 'livre') + '</small></button>';
+      return '<button type="button" class="chip ' + (n >= EQUIPES.length ? 'ocupado' : 'livre') + '" data-v="' + h + '">' +
+        fmtHora(hhmmToMin(h)) + '<small>' + vagasTexto(n) + '</small></button>';
     }).join('');
     marcaChips();
   }
@@ -370,7 +382,10 @@
       var m = hhmmToMin(t);
       if (m >= 12 * 60 + 10 && m < 13 * 60 + 40) msgs.push('Esse horário cai no intervalo de almoço (12h10 – 13h40).');
       var mesmo = d ? ocupados(d, m) : [];
-      if (mesmo.length) msgs.push('Já existe ' + mesmo.length + ' agendamento(s) nesse horário.');
+      if (HORARIOS.some(function (h) { return Math.abs(hhmmToMin(h) - m) <= 5; })) {
+        if (mesmo.length >= EQUIPES.length) msgs.push('Esse horário já está lotado (as ' + EQUIPES.length + ' equipes estão ocupadas).');
+        else if (mesmo.length) msgs.push('Vai para a ' + EQUIPES[mesmo.length] + ' (a ' + EQUIPES[0] + ' já está com ' + (mesmo[0].nome || 'alguém') + ').');
+      } else if (mesmo.length) msgs.push('Já existe ' + mesmo.length + ' agendamento(s) nesse horário.');
     }
     h.innerHTML = msgs.map(esc).join('<br>'); h.style.display = msgs.length ? 'block' : 'none';
   }
@@ -456,7 +471,7 @@
   var Demo = (function () {
     var rows = [], seq = 4;
     var base = monday(hoje);
-    [[0, '08:30', 'Maria', '', '94 8118-9184'], [0, '10:30', 'João', 'retorno', '87 99122-3212'],
+    [[0, '08:30', 'Maria', '', '94 8118-9184'], [0, '08:30', 'Rafael', '', '94 9100-7083'], [0, '10:30', 'João', 'retorno', '87 99122-3212'],
      [0, '14:00', 'Ana', '', '94 9270-4243'], [0, '16:00', 'Pedro', 'diagnóstico', '94 9903-5699'],
      [1, '08:30', 'Carla', '', '94 9170-9042'], [2, '10:30', 'Lucas', 'manutenção', ''],
      [3, '14:00', 'Bruna', '', '94 8442-9352']].forEach(function (r) {

@@ -14,7 +14,7 @@ Quando você agenda pelo app, ele:
 - se o dia ainda não existe, cria o bloco do dia (com a linha de almoço) e, se precisar, o cabeçalho da semana nova;
 - copia a formatação (cores, negrito) das linhas que já existem.
 
-Cada dia mostra os horários fixos da planilha (**8h, 8h30, 10h30, 14h, 16h**): os vagos aparecem como **Livre** — é só tocar para agendar.
+Cada dia mostra os horários fixos da planilha (**8h30, 10h30, 14h e 16h**), com **2 vagas em cada — uma para cada equipe**. O primeiro agendamento do horário fica na Equipe 1 e o segundo na Equipe 2 (na ordem das linhas da planilha). Vagas livres aparecem como **Livre** — é só tocar para agendar.
 
 No app também dá para **ver a semana**, **editar**, **excluir** e chamar o cliente no **WhatsApp**.
 
@@ -44,7 +44,7 @@ No topo do `Code.gs`:
 - `SPREADSHEET_ID` — só precisa preencher se o script for criado fora da planilha.
 - `ALMOCO_TEXTO` / `ALMOCO_INICIO_MIN` — horário do almoço.
 
-No `Index.html`, as listas `OBS` (atalhos de observação) e `HORARIOS` (horários fixos do dia) podem ser trocadas.
+No `Index.html`, as listas `OBS` (atalhos de observação) e `HORARIOS` (horários fixos do dia) e `EQUIPES` (nomes das equipes) podem ser trocadas.
 
 ## Observações
 - Domingo não tem coluna na planilha, então o app não deixa agendar no domingo.
