@@ -1,0 +1,563 @@
+<title>Agenda Higienização</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap">
+<style>
+  /* Layout: cabeçalho fixo com a semana; lista do dia em vagas por equipe; formulário em folha inferior */
+  :root {
+    --bg: #f2f6f5; --card: #ffffff; --fg: #15211f; --muted: #5f716d; --line: #dbe5e2;
+    --brand: #0d6e63; --brand-fg: #ffffff; --brand-soft: #e2f2ef;
+    --free: #1d7a3f; --free-soft: #eaf8ef; --free-line: #9fdcb4;
+    --warn: #a35a07; --warn-soft: #fff3e2; --danger: #b3261e; --danger-soft: #fdeceb;
+    --head: #0d6e63; --head-fg: #ffffff; --chip: rgba(255,255,255,.14);
+    --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+    --bg: #0e1513; --card: #16201e; --fg: #e5eeec; --muted: #94a7a2; --line: #26332f;
+    --brand: #3cc7b4; --brand-fg: #062420; --brand-soft: #143430;
+    --free: #5bd88a; --free-soft: #12291c; --free-line: #2c6a43;
+    --warn: #f0a845; --warn-soft: #33250f; --danger: #f2837b; --danger-soft: #3a1917;
+    --head: #10322d; --head-fg: #e5eeec; --chip: rgba(255,255,255,.08);
+    color-scheme: dark; } }
+  :root[data-theme="dark"] {
+    --bg: #0e1513; --card: #16201e; --fg: #e5eeec; --muted: #94a7a2; --line: #26332f;
+    --brand: #3cc7b4; --brand-fg: #062420; --brand-soft: #143430;
+    --free: #5bd88a; --free-soft: #12291c; --free-line: #2c6a43;
+    --warn: #f0a845; --warn-soft: #33250f; --danger: #f2837b; --danger-soft: #3a1917;
+    --head: #10322d; --head-fg: #e5eeec; --chip: rgba(255,255,255,.08);
+    color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { background: var(--bg); color: var(--fg); font: 15px/1.45 var(--font-body); }
+  body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--head); }
+  button, input { font: inherit; color: inherit; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .wrap { max-width: 640px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+  header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--head); color: var(--head-fg); padding-block: 12px 10px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  h1 { font: 700 20px/1.2 var(--font-display); margin: 0; letter-spacing: -.01em; }
+  .live { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; opacity: .9; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #7ee2a8; box-shadow: 0 0 0 3px rgba(126,226,168,.25); }
+  .dot.off { background: #f0a845; box-shadow: 0 0 0 3px rgba(240,168,69,.25); }
+  .ibtn { background: var(--chip); border: 0; color: var(--head-fg); width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; cursor: pointer; }
+  .ibtn svg { width: 20px; height: 20px; }
+  .week { margin-top: 10px; }
+  .week span { font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .days { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin-top: 10px; }
+  .day { background: var(--chip); border: 0; border-radius: 12px; padding: 6px 0; color: var(--head-fg); display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+  .day small { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; opacity: .85; }
+  .day b { font: 700 18px/1.2 var(--font-display); font-variant-numeric: tabular-nums; }
+  .day i { font-style: normal; font-size: 10.5px; min-height: 15px; opacity: .9; }
+  .day.sel { background: var(--card); color: var(--brand); }
+  .day.today:not(.sel) { box-shadow: inset 0 0 0 2px rgba(255,255,255,.55); }
+
+  main { padding-block: 14px 110px; }
+  .banner { border-radius: 12px; padding: 12px 14px; margin-bottom: 12px; font-size: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .banner.warn { background: var(--warn-soft); color: var(--warn); }
+  .banner.err { background: var(--danger-soft); color: var(--danger); }
+  .banner button { align-self: flex-start; border: 0; border-radius: 10px; padding: 8px 12px; background: var(--brand); color: var(--brand-fg); font-weight: 600; cursor: pointer; }
+  .dtitle { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin: 2px 0 10px; flex-wrap: wrap; }
+  .dtitle h2 { font: 700 17px/1.3 var(--font-display); margin: 0; }
+  .dtitle h2::first-letter { text-transform: uppercase; }
+  .dtitle span { color: var(--muted); font-size: 13px; }
+  .slot { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 10px; margin-bottom: 10px; }
+  .hour { font: 700 17px/1 var(--font-display); color: var(--brand); padding-top: 14px; font-variant-numeric: tabular-nums; }
+  .teams { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: flex; gap: 10px; align-items: center; cursor: pointer; width: 100%; text-align: left; }
+  .card .info { flex: 1; min-width: 0; }
+  .card .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .meta { color: var(--muted); font-size: 12.5px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .eq { font-weight: 700; color: var(--brand); font-size: 12px; letter-spacing: .02em; }
+  .tag { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); margin-left: 6px; vertical-align: 1px; }
+  .card.free { background: var(--free-soft); border: 1.5px dashed var(--free-line); }
+  .card.free .name, .card.free .eq { color: var(--free); }
+  .plus { color: var(--free); font: 700 22px/1 var(--font-display); }
+  .card.busy-other { opacity: .55; }
+  .lunch { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12.5px; margin: 6px 0 14px; }
+  .lunch::before, .lunch::after { content: ""; flex: 1; border-top: 1px dashed var(--line); }
+  .skeleton { height: 46px; border-radius: 12px; background: var(--line); opacity: .5; }
+
+  .sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 20; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; background: var(--card); border-radius: 18px 18px 0 0; max-height: 92%; overflow-y: auto; max-width: 640px; margin: 0 auto; padding-block: 8px calc(16px + env(safe-area-inset-bottom, 0px)); }
+  .sheet .wrap { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .grab { width: 40px; height: 5px; background: var(--line); border-radius: 3px; margin: 2px auto 10px; }
+  .sheet h3 { font: 700 18px/1.3 var(--font-display); margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin: 0 0 6px; }
+  label { display: block; font-size: 12.5px; color: var(--muted); margin: 12px 0 4px; font-weight: 600; letter-spacing: .02em; }
+  input { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); font-size: 16px; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .chip { border: 1px solid var(--line); background: var(--bg); border-radius: 999px; padding: 6px 12px; font-size: 13px; cursor: pointer; }
+  .chip.on { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); font-weight: 600; }
+  .slotpick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 6px; }
+  .sp { border: 1px solid var(--free-line); background: var(--free-soft); color: var(--free); border-radius: 12px; padding: 8px 10px; cursor: pointer; text-align: left; }
+  .sp b { font-family: var(--font-display); }
+  .sp small { display: block; font-size: 11.5px; }
+  .sp.full { border-color: var(--line); background: var(--bg); color: var(--muted); }
+  .sp.on { border-color: var(--brand); background: var(--brand); color: var(--brand-fg); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .actions { display: flex; gap: 10px; margin-top: 18px; }
+  .btn { flex: 1; border: 0; border-radius: 14px; padding: 14px; font-weight: 700; cursor: pointer; font-size: 15px; }
+  .btn.primary { background: var(--brand); color: var(--brand-fg); }
+  .btn.ghost { background: var(--bg); border: 1px solid var(--line); }
+  .btn.danger { background: var(--danger-soft); color: var(--danger); }
+  .btn:disabled { opacity: .6; cursor: default; }
+  .dl { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .dl span { color: var(--muted); }
+  .dl b { text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+  .confirm { background: var(--danger-soft); color: var(--danger); border-radius: 12px; padding: 12px; margin-top: 14px; font-size: 14px; }
+  .wa { display: inline-block; margin-top: 12px; padding: 10px 14px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); font-weight: 600; text-decoration: none; }
+
+  .fab { position: fixed; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 6; background: var(--brand); color: var(--brand-fg); border: 0; border-radius: 16px; padding: 14px 20px; font-weight: 700; font-size: 15px; box-shadow: 0 6px 18px rgba(13,110,99,.35); display: flex; gap: 8px; align-items: center; cursor: pointer; }
+  .toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 12px; z-index: 30; font-size: 14px; max-width: calc(100% - 32px); text-align: center; }
+  .toast.err { background: var(--danger); color: #fff; }
+  @media (prefers-reduced-motion: no-preference) { .sheet { animation: up .2s ease; } @keyframes up { from { transform: translateY(30px); opacity: .6; } } }
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="row">
+      <div>
+        <h1>Agenda Higienização</h1>
+        <div class="live"><span class="dot off" id="dot"></span><span id="liveTxt">Conectando à planilha…</span></div>
+      </div>
+      <div class="row">
+        <button class="ibtn" id="btnHoje" aria-label="Ir para hoje" title="Hoje"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg></button>
+        <button class="ibtn" id="btnSync" aria-label="Atualizar agora" title="Atualizar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg></button>
+      </div>
+    </div>
+    <div class="row week">
+      <button class="ibtn" id="prev" aria-label="Semana anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg></button>
+      <span id="weekLbl"></span>
+      <button class="ibtn" id="next" aria-label="Próxima semana"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg></button>
+    </div>
+    <div class="days" id="days"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="banner"></div>
+  <div class="dtitle"><h2 id="dTitle"></h2><span id="dCount"></span></div>
+  <div id="list"></div>
+</main>
+
+<button class="fab" id="fab"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 5v14M5 12h14"/></svg>Agendar</button>
+
+<div class="sheet-bg" id="bg" hidden></div>
+<div class="sheet" id="formSheet" role="dialog" aria-modal="true" aria-labelledby="fTitle" hidden>
+  <div class="wrap">
+    <div class="grab"></div>
+    <h3 id="fTitle">Novo agendamento</h3>
+    <p class="sub" id="fSub"></p>
+    <form id="form" autocomplete="off">
+      <label for="fNome">Cliente</label>
+      <input id="fNome" placeholder="Nome do cliente">
+      <label for="fObs">Observação (opcional)</label>
+      <input id="fObs" placeholder="ex.: retorno, diagnóstico, troca de tela">
+      <div class="chips" id="obsChips"></div>
+      <label for="fTel">Telefone / WhatsApp</label>
+      <input id="fTel" type="tel" inputmode="tel" placeholder="94 9 9999-9999">
+      <label for="fData">Data</label>
+      <input id="fData" type="date">
+      <label>Horário e equipe</label>
+      <div class="slotpick" id="slotPick"></div>
+      <label for="fServ">Serviço</label>
+      <input id="fServ" value="HIGIENIZAÇÃO">
+      <div class="actions">
+        <button type="button" class="btn ghost" id="fCancel">Fechar</button>
+        <button type="submit" class="btn primary" id="fSave">Salvar na planilha</button>
+      </div>
+    </form>
+  </div>
+</div>
+<div class="sheet" id="detSheet" role="dialog" aria-modal="true" aria-labelledby="dName" hidden>
+  <div class="wrap">
+    <div class="grab"></div>
+    <h3 id="dName"></h3>
+    <div id="dBody"></div>
+    <div id="dWa"></div>
+    <div id="dConfirm"></div>
+    <div class="actions">
+      <button class="btn danger" id="dCancelAppt">Cancelar agendamento</button>
+      <button class="btn primary" id="dEdit">Editar</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function () {
+  // ===== Configuração da planilha =====
+  var SERVER = 'Google Sheets';
+  var SHEET_ID = '1EaHMWG1U7BeiJB25ZTMCjAchtUdCIwBamLpiR-M8kws';
+  var TAB = 'Página1', TAB_ID = 0, NCOL = 16; // A..P
+  var READ = { spreadsheetId: SHEET_ID, range: TAB + '!A1:P3000' };
+  var HORARIOS = [8 * 60 + 30, 10 * 60 + 30, 14 * 60, 16 * 60];
+  var EQUIPES = ['Equipe 1', 'Equipe 2'];
+  var TOL = 5, ALMOCO = 12 * 60 + 10, ALMOCO_TXT = '12h10 – 13:40h';
+  var NOME_VAGA = 'Cliente', SERV = 'HIGIENIZAÇÃO';
+  var OBS = ['retorno', 'diagnóstico', 'manutenção', 'aguardando'];
+
+  var $ = function (id) { return document.getElementById(id); };
+  function pad(n) { return ('0' + n).slice(-2); }
+  function isoD(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+  function fromIso(s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function addDays(d, n) { var x = new Date(d); x.setDate(x.getDate() + n); return x; }
+  function monday(d) { var g = d.getDay(); return addDays(d, g === 0 ? 1 : 1 - g); }
+  function mondayIso(s) { return isoD(monday(fromIso(s))); }
+  function br(s) { var p = s.split('-'); return p[2] + '/' + p[1] + '/' + p[0]; }
+  function hm(m) { return Math.floor(m / 60) + 'h' + (m % 60 ? pad(m % 60) : ''); }
+  function horaMin(t) { var m = String(t || '').trim().match(/^(\d{1,2})(?:\s*[h:]\s*(\d{0,2}))?/i); return m ? +m[1] * 60 + (m[2] ? +m[2] : 0) : null; }
+  function near(a, b) { return a != null && b != null && Math.abs(a - b) <= TOL; }
+  function slotOf(m) { for (var i = 0; i < HORARIOS.length; i++) if (near(HORARIOS[i], m)) return HORARIOS[i]; return null; }
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
+  function digits(s) { return String(s || '').replace(/\D/g, ''); }
+  function wd(iso) { var g = fromIso(iso).getDay(); return g === 0 ? -1 : g - 1; }
+  function colData(w) { return 4 + 2 * w; } function colHora(w) { return 5 + 2 * w; }
+  function colL(n) { return String.fromCharCode(64 + n); }
+  function splitName(t) { var s = String(t || '').replace(/\s+/g, ' ').trim(), i = s.indexOf(' - '); return i < 0 ? { nome: s, obs: '' } : { nome: s.slice(0, i), obs: s.slice(i + 3) }; }
+  function joinName(n, o) { n = (n || '').trim(); o = (o || '').trim(); return o ? n + ' - ' + o : n; }
+
+  // ===== Leitura da planilha =====
+  function parse(values) {
+    var out = [];
+    for (var i = 0; i < values.length; i++) {
+      var v = values[i] || [], c = function (k) { return String(v[k] == null ? '' : v[k]); };
+      var a = c(0).trim(), L = { row: i + 1, tipo: 'other' };
+      if (/^INTERVALO/i.test(a)) L.tipo = 'lunch';
+      else if (/segunda/i.test(c(3)) && /hora/i.test(c(4))) L.tipo = 'header';
+      else {
+        for (var w = 0; w < 6; w++) {
+          var dm = c(colData(w) - 1).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          if (dm) {
+            var n = splitName(c(0));
+            L.tipo = 'appt'; L.w = w; L.data = dm[3] + '-' + pad(dm[2]) + '-' + pad(dm[1]);
+            L.hora = c(colHora(w) - 1).trim(); L.min = horaMin(L.hora);
+            L.nome = n.nome; L.obs = n.obs; L.tel = c(1).trim(); L.serv = c(15).trim();
+            L.livre = n.nome.toLowerCase() === NOME_VAGA.toLowerCase() && !n.obs && !digits(L.tel);
+            L.raw = [c(0), c(1)];
+            break;
+          }
+        }
+        if (L.tipo === 'other' && !v.join('').trim()) L.tipo = 'blank';
+      }
+      out.push(L);
+    }
+    return out;
+  }
+  function valuesOf(res) {
+    var p = res && res.payload;
+    if (typeof p === 'string') { try { p = JSON.parse(p); } catch (e) { p = null; } }
+    if (p && p.values) return p.values;
+    if (p && p.content && p.content.values) return p.content.values;
+    if (p && p.valueRange && p.valueRange.values) return p.valueRange.values;
+    return p && p.range ? [] : null;
+  }
+
+  // ===== Estado =====
+  var hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+  var S = { semana: monday(hoje), dia: hoje.getDay() === 0 ? 0 : hoje.getDay() - 1, linhas: null, mcp: null, busy: false, form: null, det: null };
+
+  function apptsOf(iso) { return (S.linhas || []).filter(function (l) { return l.tipo === 'appt' && l.data === iso; }); }
+  // vagas do dia: para cada horário, as linhas na ordem da planilha (equipe = posição)
+  function vagasDoDia(iso) {
+    var ap = apptsOf(iso), used = {}, res = [];
+    HORARIOS.forEach(function (h) {
+      var rows = ap.filter(function (l) { return near(l.min, h); }).sort(function (a, b) { return a.row - b.row; });
+      var n = Math.max(EQUIPES.length, rows.length), list = [];
+      for (var i = 0; i < n; i++) { var r = rows[i] || null; if (r) used[r.row] = 1; list.push({ h: h, i: i, eq: EQUIPES[i] || 'Extra', l: r }); }
+      res.push({ h: h, list: list });
+    });
+    var outros = ap.filter(function (l) { return !used[l.row] && !l.livre; });
+    return { fixos: res, outros: outros };
+  }
+
+  // ===== Render =====
+  var MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+  var DIA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+  var DIAL = ['segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+  function render() {
+    var s = S.semana, f = addDays(s, 5);
+    $('weekLbl').textContent = s.getDate() + ' ' + MES[s.getMonth()] + ' – ' + f.getDate() + ' ' + MES[f.getMonth()] + ' ' + f.getFullYear();
+    var h = '';
+    for (var i = 0; i < 6; i++) {
+      var d = addDays(s, i), k = isoD(d);
+      var n = S.linhas ? apptsOf(k).filter(function (l) { return !l.livre; }).length : 0;
+      h += '<button class="day' + (i === S.dia ? ' sel' : '') + (k === isoD(hoje) ? ' today' : '') + '" data-i="' + i + '"><small>' + DIA[i] + '</small><b>' + d.getDate() + '</b><i>' + (n ? n + ' ag.' : '') + '</i></button>';
+    }
+    $('days').innerHTML = h;
+    var iso = isoD(addDays(s, S.dia));
+    $('dTitle').textContent = DIAL[S.dia] + ', ' + br(iso).slice(0, 5);
+    if (!S.linhas) {
+      $('dCount').textContent = '';
+      $('list').innerHTML = '<div style="display:flex;flex-direction:column;gap:8px"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>';
+      return;
+    }
+    var vd = vagasDoDia(iso), out = '', livres = 0, ocup = 0, lunchDone = false;
+    var blocos = vd.fixos.map(function (f) { return { min: f.h, f: f }; }).concat(vd.outros.map(function (l) { return { min: l.min == null ? 9999 : l.min, o: l }; }));
+    blocos.sort(function (a, b) { return a.min - b.min; });
+    blocos.forEach(function (b) {
+      if (!lunchDone && b.min >= ALMOCO && b.min < 9999) { out += '<div class="lunch">Almoço · 12h10 – 13h40</div>'; lunchDone = true; }
+      var cards = '';
+      if (b.f) b.f.list.forEach(function (v) {
+        if (v.l && !v.l.livre) { ocup++; cards += card(v.l, v.eq); }
+        else { livres++; cards += '<button class="card free" data-h="' + v.h + '"' + (v.l ? ' data-row="' + v.l.row + '"' : '') + '><div class="info"><div class="name">Livre</div><div class="meta"><span class="eq">' + v.eq + '</span><span>Toque para agendar</span></div></div><span class="plus" aria-hidden="true">+</span></button>'; }
+      });
+      else { ocup++; cards = card(b.o, ''); }
+      out += '<div class="slot"><div class="hour">' + hm(b.f ? b.min : (b.o.min == null ? 0 : b.o.min)) + '</div><div class="teams">' + cards + '</div></div>';
+    });
+    if (!lunchDone) out += '';
+    $('list').innerHTML = out;
+    $('dCount').textContent = ocup + ' agendado(s) · ' + livres + ' vaga(s) livre(s)';
+  }
+  function card(l, eq) {
+    return '<button class="card" data-row="' + l.row + '"><div class="info"><div class="name">' + esc(l.nome || 'Sem nome') + (l.obs ? '<span class="tag">' + esc(l.obs) + '</span>' : '') + '</div><div class="meta">' + (eq ? '<span class="eq">' + eq + '</span>' : '') + '<span>' + esc(l.tel || 'sem telefone') + '</span><span>' + esc(l.serv || '') + '</span></div></div></button>';
+  }
+
+  // ===== Conexão =====
+  function setLive(ok, txt) { $('dot').className = 'dot' + (ok ? '' : ' off'); $('liveTxt').textContent = txt; }
+  function banner(kind, msg, btn) {
+    if (!kind) { $('banner').innerHTML = ''; return; }
+    $('banner').innerHTML = '<div class="banner ' + kind + '"><span>' + esc(msg) + '</span>' + (btn ? '<button id="bannerBtn">' + esc(btn) + '</button>' : '') + '</div>';
+    if (btn) $('bannerBtn').onclick = function () { lerAgora(true); };
+  }
+  function errMsg(e) {
+    var c = e && e.code;
+    if (c === 'server_not_connected' || c === 'selection_required') return ['Conecte o Google Sheets no claude.ai (Configurações → Conectores) para o app ler a planilha.', null];
+    if (c === 'needs_reauth') return ['A conexão com o Google expirou. Reconecte o Google Sheets em Configurações → Conectores.', null];
+    if (c === 'not_in_manifest' || c === 'approval_required' || c === 'consent_required') return ['O app precisa da sua permissão para usar a planilha.', 'Permitir acesso à planilha'];
+    if (c === 'blocked_by_policy') return ['Sua organização bloqueou o acesso a essa ferramenta do Google Sheets.', null];
+    if (c === 'tool_error') return ['O Google Sheets recusou: ' + (e.message || 'erro desconhecido') + '. Confira se você tem acesso de edição à planilha.', 'Tentar de novo'];
+    if (c === 'server_unavailable' || c === 'upstream_error') return ['O Google Sheets não respondeu agora. Vou tentar de novo sozinho.', 'Tentar agora'];
+    return ['Não consegui falar com a planilha (' + (c || 'erro') + ').', 'Tentar de novo'];
+  }
+  function onData(res) {
+    var vals = valuesOf(res);
+    if (!vals) { banner('err', 'A planilha respondeu num formato que o app não entendeu.', 'Tentar de novo'); return; }
+    S.linhas = parse(vals);
+    var t = res.cache && res.cache.storedAt ? new Date(res.cache.storedAt) : new Date();
+    setLive(true, 'Ao vivo · atualizado às ' + pad(t.getHours()) + ':' + pad(t.getMinutes()));
+    banner(null); render();
+  }
+  function onErr(e) {
+    var m = errMsg(e);
+    if (['needs_reauth', 'server_not_connected', 'not_in_manifest', 'approval_required', 'blocked_by_policy', 'consent_required'].indexOf(e.code) >= 0) { S.linhas = null; render(); }
+    setLive(false, 'Sem conexão com a planilha');
+    banner(e.code === 'server_unavailable' ? 'warn' : 'err', m[0], m[1]);
+  }
+  function lerAgora(gesture) {
+    if (!S.mcp) return Promise.resolve();
+    return S.mcp.callTool(SERVER, 'get_values', READ, { cache: { refresh: true, staleTime: 0, gcTime: 300000 } })
+      .then(function (r) { onData(r); return S.linhas; }, function (e) { onErr(e); throw e; });
+  }
+
+  // ===== Escrita =====
+  function upd(range, values) { return S.mcp.callTool(SERVER, 'update_values', { spreadsheetId: SHEET_ID, range: TAB + '!' + range, values: values }, { cache: false }); }
+  function batch(reqs) { return S.mcp.callTool(SERVER, 'update_spreadsheet', { spreadsheetId: SHEET_ID, requests: reqs }, { cache: false }); }
+  function fill(row, d) { return upd('A' + row + ':B' + row, [[joinName(d.nome, d.obs), d.tel || '']]).then(function () { return upd('P' + row, [[(d.serv || SERV).toUpperCase()]]); }); }
+  function free(row) { return upd('A' + row + ':B' + row, [[NOME_VAGA, '']]).then(function () { return upd('P' + row, [[SERV]]); }); }
+  function blankRow() { var v = []; for (var i = 0; i < NCOL; i++) v.push(''); return v; }
+  function apptRow(w, iso, min, nome, tel, serv) {
+    var v = blankRow(), p = iso.split('-');
+    v[0] = nome; v[1] = tel || ''; v[colData(w) - 1] = p[2] + '/' + p[1] + '/' + p[0]; v[colHora(w) - 1] = hm(min); v[15] = (serv || SERV).toUpperCase(); return v;
+  }
+  function lunchRow(w) { var v = blankRow(); v[0] = 'INTERVALO DE ALMOÇO'; if (w > 0) v[colData(w) - 3] = 'ALMOÇO'; v[colData(w) - 1] = ALMOCO_TXT; return v; }
+  function headerRow() { return ['', '', 'Valor do serviço', 'Segunda-feira', 'Horas', 'Terça-feira', 'Horas', 'Quarta-feira', 'Horas', 'Quinta-feira', 'Horas', 'Sexta-feira', 'Horas', 'sabado', 'Horas', '']; }
+
+  // Onde inserir quando não há vaga livre (mesma regra do script da planilha)
+  function plano(L, d) {
+    var iso = d.data, w = wd(iso), min = d.min, ap = L.filter(function (l) { return l.tipo === 'appt'; });
+    var doDia = ap.filter(function (l) { return l.data === iso; });
+    var alvo = { tipo: 'appt', v: apptRow(w, iso, min, joinName(d.nome, d.obs), d.tel, d.serv), alvo: true };
+    if (doDia.length) {
+      var first = doDia[0].row, last = doDia[doDia.length - 1].row, lunch = null;
+      for (var r = first; r <= last + 1 && r <= L.length; r++) if (L[r - 1].tipo === 'lunch') { lunch = r; break; }
+      var antes = doDia.filter(function (l) { return l.min != null && l.min <= min + TOL; });
+      var after = antes.length ? antes[antes.length - 1].row : first - 1;
+      if (lunch) { if (min >= ALMOCO && after < lunch) after = lunch; if (min < ALMOCO && after >= lunch) after = lunch - 1; }
+      return { after: after, items: [alvo] };
+    }
+    // dia novo: todas as vagas do dia (2 por horário) + almoço
+    var hs = HORARIOS.slice(); if (slotOf(min) == null) hs.push(min); hs.sort(function (a, b) { return a - b; });
+    var bloco = [], lunchPut = false, put = false;
+    hs.forEach(function (m) {
+      if (!lunchPut && m >= ALMOCO) { bloco.push({ tipo: 'lunch', v: lunchRow(w) }); lunchPut = true; }
+      var fixo = HORARIOS.indexOf(m) >= 0, n = fixo ? EQUIPES.length : 1;
+      for (var e = 0; e < n; e++) {
+        if (!put && near(m, min) && (fixo || m === min)) { bloco.push(alvo); put = true; }
+        else bloco.push({ tipo: 'appt', v: apptRow(w, iso, m, NOME_VAGA, '', SERV) });
+      }
+    });
+    if (!lunchPut) bloco.push({ tipo: 'lunch', v: lunchRow(w) });
+    var sem = mondayIso(iso), prev = null, next = null;
+    ap.forEach(function (l) {
+      if (l.data < iso && (!prev || l.data > prev.data || (l.data === prev.data && l.row > prev.row))) prev = l;
+      if (l.data > iso && (!next || l.data < next.data || (l.data === next.data && l.row < next.row))) next = l;
+    });
+    function fimBloco(row) { var r = row, dd = L[row - 1].data; while (r < L.length && (L[r].tipo === 'appt' || L[r].tipo === 'lunch')) { if (L[r].tipo === 'appt' && L[r].data !== dd) break; r++; } return r; }
+    function iniBloco(row) { var r = row, dd = L[row - 1].data; while (r > 1 && (L[r - 2].tipo === 'appt' || L[r - 2].tipo === 'lunch')) { if (L[r - 2].tipo === 'appt' && L[r - 2].data !== dd) break; r--; } return r; }
+    var B = { tipo: 'blank', v: blankRow() }, Hd = { tipo: 'header', v: headerRow() };
+    if (prev && mondayIso(prev.data) === sem) return { after: fimBloco(prev.row), items: [B].concat(bloco) };
+    if (next && mondayIso(next.data) === sem) return { after: iniBloco(next.row) - 1, items: bloco.concat([B]) };
+    if (prev) return { after: fimBloco(prev.row), items: [B, B, Hd].concat(bloco) };
+    if (next) { var ini = iniBloco(next.row); if (ini > 1 && L[ini - 2].tipo === 'header') ini--; return { after: ini - 1, items: [Hd].concat(bloco, [B, B]) }; }
+    return { after: Math.max(L.length, 2), items: [Hd].concat(bloco) };
+  }
+  function inserir(L, p) {
+    var n = p.items.length, after = p.after;
+    var tA = (L.filter(function (l) { return l.tipo === 'appt'; })[0] || {}).row, tL = (L.filter(function (l) { return l.tipo === 'lunch'; })[0] || {}).row, tH = (L.filter(function (l) { return l.tipo === 'header'; })[0] || {}).row;
+    function sh(r) { return r ? (r > after ? r + n : r) : null; }
+    var reqs = [{ insertDimension: { range: { sheetId: TAB_ID, dimension: 'ROWS', startIndex: after, endIndex: after + n }, inheritFromBefore: after > 0 } }];
+    p.items.forEach(function (it, i) {
+      var src = it.tipo === 'appt' ? sh(tA) : it.tipo === 'lunch' ? sh(tL) : it.tipo === 'header' ? sh(tH) : null;
+      if (src) reqs.push({ copyPaste: { source: { sheetId: TAB_ID, startRowIndex: src - 1, endRowIndex: src, startColumnIndex: 0, endColumnIndex: NCOL }, destination: { sheetId: TAB_ID, startRowIndex: after + i, endRowIndex: after + i + 1, startColumnIndex: 0, endColumnIndex: NCOL }, pasteType: 'PASTE_FORMAT' } });
+    });
+    return batch(reqs).then(function () {
+      return upd('A' + (after + 1) + ':P' + (after + n), p.items.map(function (it) { return it.v; }));
+    });
+  }
+
+  function salvar(d) {
+    // relê a planilha antes de gravar, para não escrever por cima de alguém
+    return lerAgora().then(function (L) {
+      if (d.editRow) {
+        var cur = L[d.editRow - 1];
+        if (!cur || cur.tipo !== 'appt' || cur.raw[0] !== d.editRaw[0] || cur.raw[1] !== d.editRaw[1]) throw { code: 'changed' };
+        if (cur.data === d.data && near(cur.min, d.min)) return fill(cur.row, d);
+        return free(cur.row).then(function () { return lerAgora(); }).then(function (L2) { return agendar(L2, d); });
+      }
+      return agendar(L, d);
+    });
+  }
+  function agendar(L, d) {
+    var v = null;
+    if (d.vagaRow) { var c = L[d.vagaRow - 1]; if (c && c.tipo === 'appt' && c.livre && c.data === d.data && near(c.min, d.min)) v = c; }
+    if (!v && d.vagaRow) throw { code: 'taken' };
+    if (!v) v = L.filter(function (l) { return l.tipo === 'appt' && l.livre && l.data === d.data && near(l.min, d.min); }).sort(function (a, b) { return a.row - b.row; })[0];
+    if (v) return fill(v.row, d);
+    return inserir(L, plano(L, d));
+  }
+  function cancelar(l) {
+    return lerAgora().then(function (L) {
+      var cur = L[l.row - 1];
+      if (!cur || cur.tipo !== 'appt' || cur.raw[0] !== l.raw[0] || cur.raw[1] !== l.raw[1]) throw { code: 'changed' };
+      var noHor = L.filter(function (x) { return x.tipo === 'appt' && x.data === cur.data && near(x.min, cur.min); }).length;
+      if (slotOf(cur.min) != null && noHor <= EQUIPES.length) return free(cur.row);
+      return batch([{ deleteDimension: { range: { sheetId: TAB_ID, dimension: 'ROWS', startIndex: cur.row - 1, endIndex: cur.row } } }]);
+    });
+  }
+  function writeErr(e) {
+    if (e && e.code === 'changed') return 'Essa linha mudou na planilha enquanto você editava. A lista foi atualizada; confira e tente de novo.';
+    if (e && e.code === 'taken') return 'Essa vaga acabou de ser ocupada por outra pessoa. Escolha outra.';
+    if (e && (e.code === 'server_unavailable' || e.code === 'upstream_error')) return 'O Google não confirmou a gravação. Confira a lista antes de tentar de novo.';
+    return errMsg(e)[0];
+  }
+
+  // ===== Folhas (formulário e detalhes) =====
+  var open = null;
+  function abrir(id) { fechar(); open = $(id); open.hidden = false; $('bg').hidden = false; }
+  function fechar() { if (open) open.hidden = true; open = null; $('bg').hidden = true; }
+  $('bg').onclick = fechar; $('fCancel').onclick = fechar;
+
+  $('obsChips').innerHTML = OBS.map(function (o) { return '<button type="button" class="chip" data-v="' + o + '">' + o + '</button>'; }).join('');
+  $('obsChips').onclick = function (e) { var c = e.target.closest('.chip'); if (!c) return; $('fObs').value = $('fObs').value === c.dataset.v ? '' : c.dataset.v; marcaObs(); };
+  $('fObs').oninput = marcaObs;
+  function marcaObs() { Array.prototype.forEach.call($('obsChips').children, function (c) { c.classList.toggle('on', c.dataset.v === $('fObs').value); }); }
+  $('fData').oninput = function () { S.form.sel = null; pickSlots(); };
+
+  function pickSlots() {
+    var iso = $('fData').value, h = '';
+    if (!iso || wd(iso) < 0) { $('slotPick').innerHTML = '<p class="sub">' + (iso ? 'Domingo não tem coluna na planilha. Escolha de segunda a sábado.' : 'Escolha a data.') + '</p>'; return; }
+    var vd = vagasDoDia(iso), sel = S.form.sel;
+    vd.fixos.forEach(function (f) {
+      f.list.slice(0, EQUIPES.length).forEach(function (v) {
+        var mine = S.form.edit && v.l && v.l.row === S.form.edit.row;
+        var livre = !v.l || v.l.livre || mine;
+        var on = sel && sel.h === v.h && sel.i === v.i;
+        h += '<button type="button" class="sp' + (livre ? '' : ' full') + (on ? ' on' : '') + '" data-h="' + v.h + '" data-i="' + v.i + '"' + (v.l ? ' data-row="' + v.l.row + '"' : '') + (livre ? '' : ' disabled') + '><b>' + hm(v.h) + '</b> · ' + v.eq + '<small>' + (mine ? 'atual' : livre ? 'livre' : esc(v.l.nome || 'ocupado')) + '</small></button>';
+      });
+    });
+    $('slotPick').innerHTML = h;
+  }
+  $('slotPick').onclick = function (e) {
+    var b = e.target.closest('.sp'); if (!b || b.disabled) return;
+    S.form.sel = { h: +b.dataset.h, i: +b.dataset.i, row: b.dataset.row ? +b.dataset.row : null }; pickSlots();
+  };
+
+  function novo(h, row) {
+    var iso = isoD(addDays(S.semana, S.dia));
+    S.form = { edit: null, sel: null };
+    if (h != null) { var i = 0; vagasDoDia(iso).fixos.forEach(function (f) { f.list.forEach(function (v) { if (v.h === h && ((row && v.l && v.l.row === row) || (!row && !v.l))) i = v.i; }); }); S.form.sel = { h: h, i: i, row: row || null }; }
+    $('fTitle').textContent = 'Novo agendamento'; $('fSub').textContent = 'Grava direto na planilha.';
+    $('fNome').value = ''; $('fObs').value = ''; $('fTel').value = ''; $('fServ').value = SERV; $('fData').value = iso;
+    marcaObs(); pickSlots(); abrir('formSheet'); $('fSave').disabled = false; $('fSave').textContent = 'Salvar na planilha';
+  }
+  function editar(l) {
+    S.form = { edit: l, sel: null };
+    var s = slotOf(l.min);
+    if (s != null) { vagasDoDia(l.data).fixos.forEach(function (f) { f.list.forEach(function (v) { if (v.l && v.l.row === l.row) S.form.sel = { h: v.h, i: v.i, row: l.row }; }); }); }
+    $('fTitle').textContent = 'Editar agendamento'; $('fSub').textContent = 'Linha ' + l.row + ' da planilha.';
+    $('fNome').value = l.nome; $('fObs').value = l.obs; $('fTel').value = l.tel; $('fServ').value = l.serv || SERV; $('fData').value = l.data;
+    marcaObs(); pickSlots(); abrir('formSheet'); $('fSave').disabled = false; $('fSave').textContent = 'Salvar na planilha';
+  }
+  $('fab').onclick = function () { if (!S.linhas) return toast('Espere a planilha carregar.', true); novo(null); };
+  $('list').onclick = function (e) {
+    var c = e.target.closest('.card'); if (!c || !S.linhas) return;
+    if (c.classList.contains('free')) return novo(+c.dataset.h, c.dataset.row ? +c.dataset.row : null);
+    var l = S.linhas[+c.dataset.row - 1]; if (!l) return; S.det = l;
+    $('dName').textContent = (l.nome || 'Sem nome') + (l.obs ? ' – ' + l.obs : '');
+    var rows = [['Data', br(l.data)], ['Horário', l.min == null ? l.hora : hm(l.min)], ['Telefone', l.tel || '—'], ['Serviço', l.serv || '—'], ['Linha na planilha', l.row]];
+    $('dBody').innerHTML = rows.map(function (r) { return '<div class="dl"><span>' + r[0] + '</span><b>' + esc(r[1]) + '</b></div>'; }).join('');
+    var t = digits(l.tel); $('dWa').innerHTML = t.length >= 10 ? '<a class="wa" href="https://wa.me/' + (t.length <= 11 ? '55' + t : t) + '" target="_blank" rel="noopener">Abrir WhatsApp</a>' : '';
+    $('dConfirm').innerHTML = ''; $('dCancelAppt').textContent = 'Cancelar agendamento'; $('dCancelAppt').disabled = false;
+    abrir('detSheet');
+  };
+  $('dEdit').onclick = function () { editar(S.det); };
+  $('dCancelAppt').onclick = function () {
+    var b = $('dCancelAppt');
+    if (!$('dConfirm').innerHTML) { $('dConfirm').innerHTML = '<div class="confirm">A vaga volta a ficar livre na planilha. Toque de novo para confirmar.</div>'; b.textContent = 'Confirmar cancelamento'; return; }
+    b.disabled = true; b.textContent = 'Cancelando…';
+    cancelar(S.det).then(function () { fechar(); toast('Cancelado. A vaga está livre.'); return lerAgora(); })
+      .catch(function (e) { toast(writeErr(e), true); b.disabled = false; b.textContent = 'Cancelar agendamento'; $('dConfirm').innerHTML = ''; lerAgora().catch(function () {}); });
+  };
+  $('form').onsubmit = function (e) {
+    e.preventDefault();
+    var d = { nome: $('fNome').value.trim(), obs: $('fObs').value.trim(), tel: $('fTel').value.trim(), serv: $('fServ').value.trim() || SERV, data: $('fData').value };
+    if (!d.nome) return toast('Coloque o nome do cliente.', true);
+    if (!d.data || wd(d.data) < 0) return toast('Escolha uma data de segunda a sábado.', true);
+    if (!S.form.sel) return toast('Escolha o horário e a equipe.', true);
+    if (/^cliente$/i.test(d.nome) && !d.obs && !digits(d.tel)) return toast('Use o nome do cliente ou coloque o telefone.', true);
+    d.min = S.form.sel.h; d.vagaRow = S.form.sel.row && !(S.form.edit && S.form.sel.row === S.form.edit.row) ? S.form.sel.row : null;
+    if (S.form.edit) { d.editRow = S.form.edit.row; d.editRaw = S.form.edit.raw; }
+    var b = $('fSave'); b.disabled = true; b.textContent = 'Gravando…';
+    salvar(d).then(function () {
+      fechar(); toast(S.form.edit ? 'Atualizado na planilha.' : 'Agendado! Já está na planilha.');
+      var dt = fromIso(d.data); S.semana = monday(dt); S.dia = dt.getDay() - 1; return lerAgora();
+    }).catch(function (err) { toast(writeErr(err), true); b.disabled = false; b.textContent = 'Salvar na planilha'; lerAgora().then(pickSlots, function () {}); });
+  };
+
+  // ===== Navegação =====
+  $('days').onclick = function (e) { var b = e.target.closest('.day'); if (!b) return; S.dia = +b.dataset.i; render(); };
+  $('prev').onclick = function () { S.semana = addDays(S.semana, -7); render(); };
+  $('next').onclick = function () { S.semana = addDays(S.semana, 7); render(); };
+  $('btnHoje').onclick = function () { S.semana = monday(hoje); S.dia = hoje.getDay() === 0 ? 0 : hoje.getDay() - 1; render(); };
+  $('btnSync').onclick = function () { lerAgora().then(function () { toast('Atualizado.'); }, function () {}); };
+
+  var tt;
+  function toast(m, err) { var t = $('toast'); t.textContent = m; t.className = 'toast' + (err ? ' err' : ''); t.hidden = false; clearTimeout(tt); tt = setTimeout(function () { t.hidden = true; }, err ? 5000 : 2600); }
+
+  // ===== Início =====
+  render();
+  var use = window.claude && window.claude.use ? window.claude.use('mcp') : Promise.resolve(null);
+  use.then(function (mcp) {
+    if (!mcp) { setLive(false, 'Sem conexão'); banner('err', 'Abra este app pelo claude.ai (logado na sua conta) para ele conectar à sua planilha do Google.', null); S.linhas = null; render(); return; }
+    S.mcp = mcp;
+    // primeira leitura (é aqui que o claude.ai pede a permissão da planilha, se ainda não deu)
+    lerAgora().catch(function () {});
+    // mantém a lista sincronizada com a planilha (atualiza sozinha a cada ~30 s)
+    mcp.watchTool(SERVER, 'get_values', READ, function (ev) {
+      if (ev.type === 'data') onData(ev.result); else onErr(ev.error);
+    }, { cache: { staleTime: 0, gcTime: 300000 }, refetchInterval: 30000 });
+  }, function () { setLive(false, 'Sem conexão'); banner('err', 'Não consegui iniciar a conexão com a planilha.', null); });
+})();
+</script>
