@@ -106,6 +106,14 @@
   .dl span { color: var(--muted); }
   .dl b { text-align: right; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
   .confirm { background: var(--danger-soft); color: var(--danger); border-radius: 12px; padding: 12px; margin-top: 14px; font-size: 14px; }
+  .os { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 6px; }
+  .os h4 { font: 700 15px/1.3 var(--font-display); margin: 8px 0 0; }
+  textarea { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--bg); font: inherit; font-size: 16px; color: inherit; min-height: 70px; resize: vertical; }
+  .tec { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tec button { border: 1px solid var(--line); background: var(--bg); border-radius: 12px; padding: 11px; font-weight: 600; cursor: pointer; }
+  .tec button.on { background: var(--brand); color: var(--brand-fg); border-color: var(--brand); }
+  .prev { background: var(--bg); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 6px 0 0; white-space: pre-wrap; word-break: break-word; font: inherit; font-size: 14px; }
+  .copy { width: 100%; margin-top: 10px; border: 0; border-radius: 12px; padding: 13px; font-weight: 700; background: var(--brand-soft); color: var(--brand); cursor: pointer; font-size: 15px; }
   .wa { display: inline-block; margin-top: 12px; padding: 10px 14px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); font-weight: 600; text-decoration: none; }
 
   .fab { position: fixed; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 6; background: var(--brand); color: var(--brand-fg); border: 0; border-radius: 16px; padding: 14px 20px; font-weight: 700; font-size: 15px; box-shadow: 0 6px 18px rgba(13,110,99,.35); display: flex; gap: 8px; align-items: center; cursor: pointer; }
@@ -163,6 +171,24 @@
       <div class="slotpick" id="slotPick"></div>
       <label for="fServ">Serviço</label>
       <input id="fServ" value="HIGIENIZAÇÃO">
+      <div class="os">
+        <h4>📩 Ordem de Serviço</h4>
+        <label>Técnico</label>
+        <div class="tec" id="tecPick"><button type="button" data-t="Júnior">🌍 Júnior</button><button type="button" data-t="Kevem">☀️ Kevem</button></div>
+        <label for="oEnd">🏠 Endereço</label><input id="oEnd">
+        <label for="oLoc">📍 Localização</label><input id="oLoc" placeholder="link do mapa ou ponto de referência">
+        <label for="oMaq">🧺 Máquina (marca)</label><input id="oMaq">
+        <div class="two">
+          <div><label for="oValor">💸 Valor</label><input id="oValor" inputmode="decimal"></div>
+          <div><label for="oPag">💳 Pagamento</label><input id="oPag"></div>
+        </div>
+        <label for="oPix">Pix pagamento</label><input id="oPix">
+        <label for="oTit">Titular do Pix</label><input id="oTit">
+        <label for="oObs">📝 Obs</label><textarea id="oObs"></textarea>
+        <label>Prévia</label>
+        <pre class="prev" id="oPrev"></pre>
+        <button type="button" class="copy" id="oCopy">📋 Copiar ordem de serviço</button>
+      </div>
       <div class="actions">
         <button type="button" class="btn ghost" id="fCancel">Fechar</button>
         <button type="submit" class="btn primary" id="fSave">Salvar na planilha</button>
@@ -176,6 +202,8 @@
     <h3 id="dName"></h3>
     <div id="dBody"></div>
     <div id="dWa"></div>
+    <pre class="prev" id="dOs" style="margin-top:14px"></pre>
+    <button type="button" class="copy" id="dCopy">📋 Copiar ordem de serviço</button>
     <div id="dConfirm"></div>
     <div class="actions">
       <button class="btn danger" id="dCancelAppt">Cancelar agendamento</button>
@@ -190,8 +218,12 @@
   // ===== Configuração da planilha =====
   var SERVER = 'Google Sheets';
   var SHEET_ID = '1EaHMWG1U7BeiJB25ZTMCjAchtUdCIwBamLpiR-M8kws';
-  var TAB = 'Página1', TAB_ID = 0, NCOL = 16; // A..P
-  var READ = { spreadsheetId: SHEET_ID, range: TAB + '!A1:P3000' };
+  var TAB = 'Página1', TAB_ID = 0, NCOL = 16; // A..P (layout original)
+  // Dados da ordem de serviço ficam nas colunas livres Q..W
+  var OS_COLS = ['end', 'loc', 'maq', 'tec', 'valor', 'pag', 'oobs']; // Q Endereço, R Localização, S Máquina, T Técnico, U Valor, V Pagamento, W Obs
+  var NV = NCOL + OS_COLS.length; // A..W
+  var READ = { spreadsheetId: SHEET_ID, range: TAB + '!A1:W3000' };
+  var OS_PADRAO = { tec: 'Júnior', valor: '130,00', pag: 'PIX', pix: '052.593.752-89', tit: 'Kevem Nascimento rabelo' };
   var HORARIOS = [8 * 60 + 30, 10 * 60 + 30, 14 * 60, 16 * 60];
   var EQUIPES = ['Equipe 1', 'Equipe 2'];
   var TOL = 5, ALMOCO = 12 * 60 + 10, ALMOCO_TXT = '12h10 – 13:40h';
@@ -236,6 +268,7 @@
             L.nome = n.nome; L.obs = n.obs; L.tel = c(1).trim(); L.serv = c(15).trim();
             L.livre = n.nome.toLowerCase() === NOME_VAGA.toLowerCase() && !n.obs && !digits(L.tel);
             L.raw = [c(0), c(1)];
+            L.os = {}; OS_COLS.forEach(function (k, j) { L.os[k] = c(NCOL + j).trim(); });
             break;
           }
         }
@@ -354,21 +387,22 @@
   // ===== Escrita =====
   function upd(range, values) { return S.mcp.callTool(SERVER, 'update_values', { spreadsheetId: SHEET_ID, range: TAB + '!' + range, values: values }, { cache: false }); }
   function batch(reqs) { return S.mcp.callTool(SERVER, 'update_spreadsheet', { spreadsheetId: SHEET_ID, requests: reqs }, { cache: false }); }
-  function fill(row, d) { return upd('A' + row + ':B' + row, [[joinName(d.nome, d.obs), d.tel || '']]).then(function () { return upd('P' + row, [[(d.serv || SERV).toUpperCase()]]); }); }
-  function free(row) { return upd('A' + row + ':B' + row, [[NOME_VAGA, '']]).then(function () { return upd('P' + row, [[SERV]]); }); }
-  function blankRow() { var v = []; for (var i = 0; i < NCOL; i++) v.push(''); return v; }
+  function osVals(d) { return OS_COLS.map(function (k) { return d.os ? (d.os[k] || '') : ''; }); }
+  function fill(row, d) { return upd('A' + row + ':B' + row, [[joinName(d.nome, d.obs), d.tel || '']]).then(function () { return upd('P' + row + ':W' + row, [[(d.serv || SERV).toUpperCase()].concat(osVals(d))]); }); }
+  function free(row) { return upd('A' + row + ':B' + row, [[NOME_VAGA, '']]).then(function () { return upd('P' + row + ':W' + row, [[SERV].concat(osVals({}))]); }); }
+  function blankRow() { var v = []; for (var i = 0; i < NV; i++) v.push(''); return v; }
   function apptRow(w, iso, min, nome, tel, serv) {
     var v = blankRow(), p = iso.split('-');
     v[0] = nome; v[1] = tel || ''; v[colData(w) - 1] = p[2] + '/' + p[1] + '/' + p[0]; v[colHora(w) - 1] = hm(min); v[15] = (serv || SERV).toUpperCase(); return v;
   }
   function lunchRow(w) { var v = blankRow(); v[0] = 'INTERVALO DE ALMOÇO'; if (w > 0) v[colData(w) - 3] = 'ALMOÇO'; v[colData(w) - 1] = ALMOCO_TXT; return v; }
-  function headerRow() { return ['', '', 'Valor do serviço', 'Segunda-feira', 'Horas', 'Terça-feira', 'Horas', 'Quarta-feira', 'Horas', 'Quinta-feira', 'Horas', 'Sexta-feira', 'Horas', 'sabado', 'Horas', '']; }
+  function headerRow() { return ['', '', 'Valor do serviço', 'Segunda-feira', 'Horas', 'Terça-feira', 'Horas', 'Quarta-feira', 'Horas', 'Quinta-feira', 'Horas', 'Sexta-feira', 'Horas', 'sabado', 'Horas', '', '', '', '', '', '', '', '']; }
 
   // Onde inserir quando não há vaga livre (mesma regra do script da planilha)
   function plano(L, d) {
     var iso = d.data, w = wd(iso), min = d.min, ap = L.filter(function (l) { return l.tipo === 'appt'; });
     var doDia = ap.filter(function (l) { return l.data === iso; });
-    var alvo = { tipo: 'appt', v: apptRow(w, iso, min, joinName(d.nome, d.obs), d.tel, d.serv), alvo: true };
+    var alvo = { tipo: 'appt', v: apptRow(w, iso, min, joinName(d.nome, d.obs), d.tel, d.serv).slice(0, NCOL).concat(osVals(d)), alvo: true };
     if (doDia.length) {
       var first = doDia[0].row, last = doDia[doDia.length - 1].row, lunch = null;
       for (var r = first; r <= last + 1 && r <= L.length; r++) if (L[r - 1].tipo === 'lunch') { lunch = r; break; }
@@ -413,7 +447,7 @@
       if (src) reqs.push({ copyPaste: { source: { sheetId: TAB_ID, startRowIndex: src - 1, endRowIndex: src, startColumnIndex: 0, endColumnIndex: NCOL }, destination: { sheetId: TAB_ID, startRowIndex: after + i, endRowIndex: after + i + 1, startColumnIndex: 0, endColumnIndex: NCOL }, pasteType: 'PASTE_FORMAT' } });
     });
     return batch(reqs).then(function () {
-      return upd('A' + (after + 1) + ':P' + (after + n), p.items.map(function (it) { return it.v; }));
+      return upd('A' + (after + 1) + ':W' + (after + n), p.items.map(function (it) { var v = it.v.slice(); while (v.length < NV) v.push(''); return v; }));
     });
   }
 
@@ -453,6 +487,64 @@
     return errMsg(e)[0];
   }
 
+  // ===== Ordem de Serviço =====
+  function lsGet(k, def) { try { var v = localStorage.getItem(k); return v == null ? def : v; } catch (e) { return def; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function osTexto(o) {
+    var icon = /kevem/i.test(o.tec || '') ? '☀️' : '🌍';
+    return Array(10).join(icon) + '\n\n' +
+      '📩 ORDEM DE SERVIÇO\n\n' +
+      '👤 Nome: ' + (o.nome || '') + '\n' +
+      '📞 Telefone: ' + (o.tel || '') + '\n' +
+      '🏠 Endereço: ' + (o.end || '') + '\n\n' +
+      '📍 Localização: ' + (o.loc || '') + '\n\n' +
+      '🧺 Máquina (marca): ' + (o.maq || '') + '\n' +
+      '⚠️ serviço: ' + (o.serv || '') + '\n' +
+      '💸 Valor: ' + (o.valor || '') + '\n\n' +
+      '⏰ Hora: ' + (o.hora || '') + '\n\n' +
+      '💳 Forma Pagamento: ' + (o.pag || '') + '\n\n' +
+      'Pix pagamento: ' + (o.pix || '') + '\n\n' +
+      (o.tit || '') + '\n\n' +
+      'Tecnico: ' + (o.tec || '') + '\n\n' +
+      '📝 Obs: ' + (o.oobs || '');
+  }
+  function servTitulo(sv) { sv = (sv || '').trim(); return sv ? sv.charAt(0) + sv.slice(1).toLowerCase() : ''; }
+  function formOs() {
+    var sel = S.form && S.form.sel;
+    return {
+      nome: $('fNome').value.trim(), tel: $('fTel').value.trim(), end: $('oEnd').value.trim(), loc: $('oLoc').value.trim(),
+      maq: $('oMaq').value.trim(), serv: servTitulo($('fServ').value), valor: $('oValor').value.trim(),
+      hora: sel ? hm(sel.h).toUpperCase() : '', pag: $('oPag').value.trim(), pix: $('oPix').value.trim(),
+      tit: $('oTit').value.trim(), tec: S.form ? S.form.tec : OS_PADRAO.tec, oobs: $('oObs').value.trim()
+    };
+  }
+  function prevForm() { if (S.form) $('oPrev').textContent = osTexto(formOs()); }
+  function marcaTec() { Array.prototype.forEach.call($('tecPick').children, function (b) { b.classList.toggle('on', S.form && b.dataset.t === S.form.tec); }); }
+  $('tecPick').onclick = function (e) { var b = e.target.closest('button'); if (!b) return; S.form.tec = b.dataset.t; marcaTec(); prevForm(); };
+  ['fNome', 'fTel', 'fServ', 'oEnd', 'oLoc', 'oMaq', 'oValor', 'oPag', 'oPix', 'oTit', 'oObs'].forEach(function (id) { $(id).addEventListener('input', prevForm); });
+  $('oPix').addEventListener('input', function () { lsSet('osPix', $('oPix').value); });
+  $('oTit').addEventListener('input', function () { lsSet('osTit', $('oTit').value); });
+  function preencheOs(os) {
+    os = os || {};
+    $('oEnd').value = os.end || ''; $('oLoc').value = os.loc || ''; $('oMaq').value = os.maq || '';
+    $('oValor').value = os.valor || OS_PADRAO.valor; $('oPag').value = os.pag || OS_PADRAO.pag; $('oObs').value = os.oobs || '';
+    $('oPix').value = lsGet('osPix', OS_PADRAO.pix); $('oTit').value = lsGet('osTit', OS_PADRAO.tit);
+    S.form.tec = os.tec || OS_PADRAO.tec; marcaTec(); prevForm();
+  }
+  function copiar(texto, btn) {
+    var orig = btn.textContent;
+    function ok() { btn.textContent = '✅ Copiado!'; setTimeout(function () { btn.textContent = orig; }, 1600); }
+    function fb() {
+      var t = document.createElement('textarea'); t.value = texto; t.style.position = 'fixed'; t.style.opacity = '0';
+      document.body.appendChild(t); t.select();
+      try { if (document.execCommand('copy')) ok(); else throw 0; } catch (e) { toast('Não deu para copiar sozinho. Segure o dedo na prévia e copie.', true); }
+      document.body.removeChild(t);
+    }
+    try { navigator.clipboard.writeText(texto).then(ok, fb); } catch (e) { fb(); }
+  }
+  $('oCopy').onclick = function () { copiar(osTexto(formOs()), $('oCopy')); };
+  $('dCopy').onclick = function () { copiar($('dOs').textContent, $('dCopy')); };
+
   // ===== Folhas (formulário e detalhes) =====
   var open = null;
   function abrir(id) { fechar(); open = $(id); open.hidden = false; $('bg').hidden = false; }
@@ -481,7 +573,7 @@
   }
   $('slotPick').onclick = function (e) {
     var b = e.target.closest('.sp'); if (!b || b.disabled) return;
-    S.form.sel = { h: +b.dataset.h, i: +b.dataset.i, row: b.dataset.row ? +b.dataset.row : null }; pickSlots();
+    S.form.sel = { h: +b.dataset.h, i: +b.dataset.i, row: b.dataset.row ? +b.dataset.row : null }; pickSlots(); prevForm();
   };
 
   function novo(h, row) {
@@ -490,7 +582,7 @@
     if (h != null) { var i = 0; vagasDoDia(iso).fixos.forEach(function (f) { f.list.forEach(function (v) { if (v.h === h && ((row && v.l && v.l.row === row) || (!row && !v.l))) i = v.i; }); }); S.form.sel = { h: h, i: i, row: row || null }; }
     $('fTitle').textContent = 'Novo agendamento'; $('fSub').textContent = 'Grava direto na planilha.';
     $('fNome').value = ''; $('fObs').value = ''; $('fTel').value = ''; $('fServ').value = SERV; $('fData').value = iso;
-    marcaObs(); pickSlots(); abrir('formSheet'); $('fSave').disabled = false; $('fSave').textContent = 'Salvar na planilha';
+    marcaObs(); pickSlots(); preencheOs(null); abrir('formSheet'); $('fSave').disabled = false; $('fSave').textContent = 'Salvar na planilha';
   }
   function editar(l) {
     S.form = { edit: l, sel: null };
@@ -498,7 +590,7 @@
     if (s != null) { vagasDoDia(l.data).fixos.forEach(function (f) { f.list.forEach(function (v) { if (v.l && v.l.row === l.row) S.form.sel = { h: v.h, i: v.i, row: l.row }; }); }); }
     $('fTitle').textContent = 'Editar agendamento'; $('fSub').textContent = 'Linha ' + l.row + ' da planilha.';
     $('fNome').value = l.nome; $('fObs').value = l.obs; $('fTel').value = l.tel; $('fServ').value = l.serv || SERV; $('fData').value = l.data;
-    marcaObs(); pickSlots(); abrir('formSheet'); $('fSave').disabled = false; $('fSave').textContent = 'Salvar na planilha';
+    marcaObs(); pickSlots(); preencheOs(l.os); abrir('formSheet'); $('fSave').disabled = false; $('fSave').textContent = 'Salvar na planilha';
   }
   $('fab').onclick = function () { if (!S.linhas) return toast('Espere a planilha carregar.', true); novo(null); };
   $('list').onclick = function (e) {
@@ -508,6 +600,10 @@
     $('dName').textContent = (l.nome || 'Sem nome') + (l.obs ? ' – ' + l.obs : '');
     var rows = [['Data', br(l.data)], ['Horário', l.min == null ? l.hora : hm(l.min)], ['Telefone', l.tel || '—'], ['Serviço', l.serv || '—'], ['Linha na planilha', l.row]];
     $('dBody').innerHTML = rows.map(function (r) { return '<div class="dl"><span>' + r[0] + '</span><b>' + esc(r[1]) + '</b></div>'; }).join('');
+    $('dOs').textContent = osTexto({ nome: l.nome, tel: l.tel, end: l.os.end, loc: l.os.loc, maq: l.os.maq, serv: servTitulo(l.serv),
+      valor: l.os.valor, hora: (l.min == null ? l.hora : hm(slotOf(l.min) || l.min)).toUpperCase(), pag: l.os.pag,
+      pix: lsGet('osPix', OS_PADRAO.pix), tit: lsGet('osTit', OS_PADRAO.tit), tec: l.os.tec, oobs: l.os.oobs });
+    $('dCopy').textContent = '📋 Copiar ordem de serviço';
     var t = digits(l.tel); $('dWa').innerHTML = t.length >= 10 ? '<a class="wa" href="https://wa.me/' + (t.length <= 11 ? '55' + t : t) + '" target="_blank" rel="noopener">Abrir WhatsApp</a>' : '';
     $('dConfirm').innerHTML = ''; $('dCancelAppt').textContent = 'Cancelar agendamento'; $('dCancelAppt').disabled = false;
     abrir('detSheet');
@@ -527,6 +623,7 @@
     if (!d.data || wd(d.data) < 0) return toast('Escolha uma data de segunda a sábado.', true);
     if (!S.form.sel) return toast('Escolha o horário e a equipe.', true);
     if (/^cliente$/i.test(d.nome) && !d.obs && !digits(d.tel)) return toast('Use o nome do cliente ou coloque o telefone.', true);
+    var fo = formOs(); d.os = { end: fo.end, loc: fo.loc, maq: fo.maq, tec: fo.tec, valor: fo.valor, pag: fo.pag, oobs: fo.oobs };
     d.min = S.form.sel.h; d.vagaRow = S.form.sel.row && !(S.form.edit && S.form.sel.row === S.form.edit.row) ? S.form.sel.row : null;
     if (S.form.edit) { d.editRow = S.form.edit.row; d.editRaw = S.form.edit.raw; }
     var b = $('fSave'); b.disabled = true; b.textContent = 'Gravando…';
