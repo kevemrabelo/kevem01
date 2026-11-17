@@ -8,6 +8,7 @@
     --bg: #f2f6f5; --card: #ffffff; --fg: #15211f; --muted: #5f716d; --line: #dbe5e2;
     --brand: #0d6e63; --brand-fg: #ffffff; --brand-soft: #e2f2ef;
     --free: #1d7a3f; --free-soft: #eaf8ef; --free-line: #9fdcb4;
+    --t0: #1d5fd1; --t0-soft: #e2ecfd; --t0-fg: #1748a0; --t1: #e3a600; --t1-soft: #fff4cc; --t1-fg: #7a5600;
     --warn: #a35a07; --warn-soft: #fff3e2; --danger: #b3261e; --danger-soft: #fdeceb;
     --head: #0d6e63; --head-fg: #ffffff; --chip: rgba(255,255,255,.14);
     --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -17,6 +18,7 @@
     --bg: #0e1513; --card: #16201e; --fg: #e5eeec; --muted: #94a7a2; --line: #26332f;
     --brand: #3cc7b4; --brand-fg: #062420; --brand-soft: #143430;
     --free: #5bd88a; --free-soft: #12291c; --free-line: #2c6a43;
+    --t0: #6ea4ff; --t0-soft: #172742; --t0-fg: #a9c8ff; --t1: #f2c94c; --t1-soft: #352b0c; --t1-fg: #f6d878;
     --warn: #f0a845; --warn-soft: #33250f; --danger: #f2837b; --danger-soft: #3a1917;
     --head: #10322d; --head-fg: #e5eeec; --chip: rgba(255,255,255,.08);
     color-scheme: dark; } }
@@ -24,6 +26,7 @@
     --bg: #0e1513; --card: #16201e; --fg: #e5eeec; --muted: #94a7a2; --line: #26332f;
     --brand: #3cc7b4; --brand-fg: #062420; --brand-soft: #143430;
     --free: #5bd88a; --free-soft: #12291c; --free-line: #2c6a43;
+    --t0: #6ea4ff; --t0-soft: #172742; --t0-fg: #a9c8ff; --t1: #f2c94c; --t1-soft: #352b0c; --t1-fg: #f6d878;
     --warn: #f0a845; --warn-soft: #33250f; --danger: #f2837b; --danger-soft: #3a1917;
     --head: #10322d; --head-fg: #e5eeec; --chip: rgba(255,255,255,.08);
     color-scheme: dark; }
@@ -69,6 +72,14 @@
   .card .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .card .meta { color: var(--muted); font-size: 12.5px; display: flex; gap: 8px; flex-wrap: wrap; }
   .eq { font-weight: 700; color: var(--brand); font-size: 12px; letter-spacing: .02em; }
+  .eq.t0, .card.free .eq.t0 { background: var(--t0-soft); color: var(--t0-fg); border: 1px solid var(--t0); border-radius: 999px; padding: 0 8px; }
+  .eq.t1, .card.free .eq.t1 { background: var(--t1-soft); color: var(--t1-fg); border: 1px solid var(--t1); border-radius: 999px; padding: 0 8px; }
+  .card.t0 { border-left: 6px solid var(--t0); }
+  .card.t1 { border-left: 6px solid var(--t1); }
+  .card.free.t0 { border-left: 6px solid var(--t0); }
+  .card.free.t1 { border-left: 6px solid var(--t1); }
+  .sp.t0:not(.on) { border-left: 6px solid var(--t0); }
+  .sp.t1:not(.on) { border-left: 6px solid var(--t1); }
   .tag { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); margin-left: 6px; vertical-align: 1px; }
   .card.free { background: var(--free-soft); border: 1.5px dashed var(--free-line); }
   .card.free .name, .card.free .eq { color: var(--free); }
@@ -333,8 +344,8 @@
       if (!lunchDone && b.min >= ALMOCO && b.min < 9999) { out += '<div class="lunch">Almoço · 12h10 – 13h40</div>'; lunchDone = true; }
       var cards = '';
       if (b.f) b.f.list.forEach(function (v) {
-        if (v.l && !v.l.livre) { ocup++; cards += card(v.l, v.eq); }
-        else { livres++; cards += '<button class="card free" data-h="' + v.h + '"' + (v.l ? ' data-row="' + v.l.row + '"' : '') + '><div class="info"><div class="name">Livre</div><div class="meta"><span class="eq">' + v.eq + '</span><span>Toque para agendar</span></div></div><span class="plus" aria-hidden="true">+</span></button>'; }
+        if (v.l && !v.l.livre) { ocup++; cards += card(v.l, v.eq, v.i); }
+        else { livres++; cards += '<button class="card free' + tc(v.i) + '" data-h="' + v.h + '"' + (v.l ? ' data-row="' + v.l.row + '"' : '') + '><div class="info"><div class="name">Livre</div><div class="meta"><span class="eq' + tc(v.i) + '">' + v.eq + '</span><span>Toque para agendar</span></div></div><span class="plus" aria-hidden="true">+</span></button>'; }
       });
       else { ocup++; cards = card(b.o, ''); }
       out += '<div class="slot"><div class="hour">' + hm(b.f ? b.min : (b.o.min == null ? 0 : b.o.min)) + '</div><div class="teams">' + cards + '</div></div>';
@@ -343,8 +354,9 @@
     $('list').innerHTML = out;
     $('dCount').textContent = ocup + ' agendado(s) · ' + livres + ' vaga(s) livre(s)';
   }
-  function card(l, eq) {
-    return '<button class="card" data-row="' + l.row + '"><div class="info"><div class="name">' + esc(l.nome || 'Sem nome') + (l.obs ? '<span class="tag">' + esc(l.obs) + '</span>' : '') + '</div><div class="meta">' + (eq ? '<span class="eq">' + eq + '</span>' : '') + '<span>' + esc(l.tel || 'sem telefone') + '</span><span>' + esc(l.serv || '') + '</span></div></div></button>';
+  function tc(i) { return i === 0 ? ' t0' : i === 1 ? ' t1' : ''; }
+  function card(l, eq, i) {
+    return '<button class="card' + tc(i) + '" data-row="' + l.row + '"><div class="info"><div class="name">' + esc(l.nome || 'Sem nome') + (l.obs ? '<span class="tag">' + esc(l.obs) + '</span>' : '') + '</div><div class="meta">' + (eq ? '<span class="eq' + tc(i) + '">' + eq + '</span>' : '') + '<span>' + esc(l.tel || 'sem telefone') + '</span><span>' + esc(l.serv || '') + '</span></div></div></button>';
   }
 
   // ===== Conexão =====
@@ -566,7 +578,7 @@
         var mine = S.form.edit && v.l && v.l.row === S.form.edit.row;
         var livre = !v.l || v.l.livre || mine;
         var on = sel && sel.h === v.h && sel.i === v.i;
-        h += '<button type="button" class="sp' + (livre ? '' : ' full') + (on ? ' on' : '') + '" data-h="' + v.h + '" data-i="' + v.i + '"' + (v.l ? ' data-row="' + v.l.row + '"' : '') + (livre ? '' : ' disabled') + '><b>' + hm(v.h) + '</b> · ' + v.eq + '<small>' + (mine ? 'atual' : livre ? 'livre' : esc(v.l.nome || 'ocupado')) + '</small></button>';
+        h += '<button type="button" class="sp' + tc(v.i) + (livre ? '' : ' full') + (on ? ' on' : '') + '" data-h="' + v.h + '" data-i="' + v.i + '"' + (v.l ? ' data-row="' + v.l.row + '"' : '') + (livre ? '' : ' disabled') + '><b>' + hm(v.h) + '</b> · ' + v.eq + '<small>' + (mine ? 'atual' : livre ? 'livre' : esc(v.l.nome || 'ocupado')) + '</small></button>';
       });
     });
     $('slotPick').innerHTML = h;
