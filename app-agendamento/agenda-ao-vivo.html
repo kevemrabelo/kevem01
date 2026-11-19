@@ -204,6 +204,13 @@
   .fab:active { transform: scale(.97); }
   .toast { border-radius: 14px; box-shadow: var(--shadow-lg); padding: 12px 18px; }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  .done-pill { display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; font-weight: 700; padding: 1px 9px; border-radius: 999px; background: var(--brand); color: var(--brand-fg); margin-left: 6px; vertical-align: 1px; }
+  .card.done { background: var(--brand-soft); }
+  .card.done .name { text-decoration: none; }
+  .card.done .av { background: var(--brand); color: var(--brand-fg); box-shadow: none; }
+  .feito { width: 100%; margin-top: 12px; border: 2px solid var(--brand); border-radius: 14px; padding: 13px; font-weight: 700; font-size: 15px; background: var(--card); color: var(--brand); cursor: pointer; }
+  .feito.on { background: var(--brand); color: var(--brand-fg); }
+  .feito:disabled { opacity: .6; cursor: default; }
 </style>
 
 <header class="top">
@@ -291,6 +298,7 @@
     <div id="dWa"></div>
     <pre class="prev" id="dOs" style="margin-top:14px"></pre>
     <button type="button" class="copy" id="dCopy">📋 Copiar ordem de serviço</button>
+    <button type="button" class="feito" id="dFeito">✅ Marcar serviço como feito</button>
     <div id="dConfirm"></div>
     <div class="actions">
       <button class="btn danger" id="dCancelAppt">Cancelar agendamento</button>
@@ -309,7 +317,8 @@
   // Dados da ordem de serviço ficam nas colunas livres Q..W
   var OS_COLS = ['end', 'loc', 'maq', 'tec', 'valor', 'pag', 'oobs']; // Q Endereço, R Localização, S Máquina, T Técnico, U Valor, V Pagamento, W Obs
   var NV = NCOL + OS_COLS.length; // A..W
-  var READ = { spreadsheetId: SHEET_ID, range: TAB + '!A1:W3000' };
+  var READ = { spreadsheetId: SHEET_ID, range: TAB + '!A1:X3000' };
+  var COL_FEITO = 'X', FEITO_TXT = 'FEITO'; // coluna X: serviço feito
   var OS_PADRAO = { tec: 'Júnior', valor: '130,00', pag: 'PIX', pix: '052.593.752-89', tit: 'Kevem Nascimento rabelo' };
   var HORARIOS = [8 * 60 + 30, 10 * 60 + 30, 14 * 60, 16 * 60];
   var EQUIPES = ['Técnico Júnior', 'Técnico Luiz Fernando'];
@@ -356,6 +365,7 @@
             L.livre = n.nome.toLowerCase() === NOME_VAGA.toLowerCase() && !n.obs && !digits(L.tel);
             L.raw = [c(0), c(1)];
             L.os = {}; OS_COLS.forEach(function (k, j) { L.os[k] = c(NCOL + j).trim(); });
+            L.feito = !!c(NCOL + OS_COLS.length).trim();
             break;
           }
         }
@@ -413,28 +423,28 @@
       $('list').innerHTML = '<div style="display:flex;flex-direction:column;gap:8px"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>';
       return;
     }
-    var vd = vagasDoDia(iso), out = '', livres = 0, ocup = 0, lunchDone = false;
+    var vd = vagasDoDia(iso), out = '', livres = 0, feitos = 0, ocup = 0, lunchDone = false;
     var blocos = vd.fixos.map(function (f) { return { min: f.h, f: f }; }).concat(vd.outros.map(function (l) { return { min: l.min == null ? 9999 : l.min, o: l }; }));
     blocos.sort(function (a, b) { return a.min - b.min; });
     blocos.forEach(function (b) {
       if (!lunchDone && b.min >= ALMOCO && b.min < 9999) { out += '<div class="lunch">Almoço · 12h10 – 13h40</div>'; lunchDone = true; }
       var cards = '';
       if (b.f) b.f.list.forEach(function (v) {
-        if (v.l && !v.l.livre) { ocup++; cards += card(v.l, v.eq, v.i); }
+        if (v.l && !v.l.livre) { ocup++; if (v.l.feito) feitos++; cards += card(v.l, v.eq, v.i); }
         else { livres++; cards += '<button class="card free' + tc(v.i) + '" data-h="' + v.h + '"' + (v.l ? ' data-row="' + v.l.row + '"' : '') + '><div class="info"><div class="name">Livre</div><div class="meta"><span class="eq' + tc(v.i) + '">' + v.eq + '</span><span>Toque para agendar</span></div></div><span class="plus" aria-hidden="true">+</span></button>'; }
       });
-      else { ocup++; cards = card(b.o, ''); }
+      else { ocup++; if (b.o.feito) feitos++; cards = card(b.o, ''); }
       var hTxt = hm(b.f ? b.min : (b.o.min == null ? 0 : b.o.min));
       out += '<div class="slot"><div class="hour" data-h="' + hTxt + '">' + hTxt + '</div><div class="teams">' + cards + '</div></div>';
     });
     if (!lunchDone) out += '';
     $('list').innerHTML = out;
-    $('dCount').textContent = ocup + ' agendado(s) · ' + livres + ' vaga(s) livre(s)';
+    $('dCount').textContent = ocup + ' agendado(s) · ' + (feitos ? feitos + ' feito(s) · ' : '') + livres + ' vaga(s) livre(s)';
   }
   function tc(i) { return i === 0 ? ' t0' : i === 1 ? ' t1' : ''; }
   function card(l, eq, i) {
     var ini = (l.nome || '?').trim().charAt(0).toUpperCase() || '?';
-    return '<button class="card' + tc(i) + '" data-row="' + l.row + '"><span class="av" aria-hidden="true">' + esc(ini) + '</span><div class="info"><div class="name">' + esc(l.nome || 'Sem nome') + (l.obs ? '<span class="tag">' + esc(l.obs) + '</span>' : '') + '</div><div class="meta">' + (eq ? '<span class="eq' + tc(i) + '">' + eq + '</span>' : '') + '<span>' + esc(l.tel || 'sem telefone') + '</span><span>' + esc(l.serv || '') + '</span></div></div></button>';
+    return '<button class="card' + tc(i) + (l.feito ? ' done' : '') + '" data-row="' + l.row + '"><span class="av" aria-hidden="true">' + (l.feito ? '✓' : esc(ini)) + '</span><div class="info"><div class="name">' + esc(l.nome || 'Sem nome') + (l.obs ? '<span class="tag">' + esc(l.obs) + '</span>' : '') + (l.feito ? '<span class="done-pill">✅ Feito</span>' : '') + '</div><div class="meta">' + (eq ? '<span class="eq' + tc(i) + '">' + eq + '</span>' : '') + '<span>' + esc(l.tel || 'sem telefone') + '</span><span>' + esc(l.serv || '') + '</span></div></div></button>';
   }
 
   // ===== Conexão =====
@@ -479,7 +489,7 @@
   function batch(reqs) { return S.mcp.callTool(SERVER, 'update_spreadsheet', { spreadsheetId: SHEET_ID, requests: reqs }, { cache: false }); }
   function osVals(d) { return OS_COLS.map(function (k) { return d.os ? (d.os[k] || '') : ''; }); }
   function fill(row, d) { return upd('A' + row + ':B' + row, [[joinName(d.nome, d.obs), d.tel || '']]).then(function () { return upd('P' + row + ':W' + row, [[(d.serv || SERV).toUpperCase()].concat(osVals(d))]); }); }
-  function free(row) { return upd('A' + row + ':B' + row, [[NOME_VAGA, '']]).then(function () { return upd('P' + row + ':W' + row, [[SERV].concat(osVals({}))]); }); }
+  function free(row) { return upd('A' + row + ':B' + row, [[NOME_VAGA, '']]).then(function () { return upd('P' + row + ':X' + row, [[SERV].concat(osVals({}), [''])]); }); }
   function blankRow() { var v = []; for (var i = 0; i < NV; i++) v.push(''); return v; }
   function apptRow(w, iso, min, nome, tel, serv) {
     var v = blankRow(), p = iso.split('-');
@@ -696,9 +706,27 @@
     $('dCopy').textContent = '📋 Copiar ordem de serviço';
     var t = digits(l.tel); $('dWa').innerHTML = t.length >= 10 ? '<a class="wa" href="https://wa.me/' + (t.length <= 11 ? '55' + t : t) + '" target="_blank" rel="noopener">Abrir WhatsApp</a>' : '';
     $('dConfirm').innerHTML = ''; $('dCancelAppt').textContent = 'Cancelar agendamento'; $('dCancelAppt').disabled = false;
+    marcaFeito(l.feito);
     abrir('detSheet');
   };
   $('dEdit').onclick = function () { editar(S.det); };
+  function marcaFeito(f) {
+    var b = $('dFeito'); b.disabled = false;
+    b.classList.toggle('on', !!f);
+    b.textContent = f ? '✅ Serviço feito · tocar para desfazer' : '✅ Marcar serviço como feito';
+  }
+  $('dFeito').onclick = function () {
+    var l = S.det, novo = !l.feito, b = $('dFeito');
+    b.disabled = true; b.textContent = 'Gravando…';
+    lerAgora().then(function (L) {
+      var cur = L[l.row - 1];
+      if (!cur || cur.tipo !== 'appt' || cur.raw[0] !== l.raw[0] || cur.raw[1] !== l.raw[1]) throw { code: 'changed' };
+      return upd(COL_FEITO + l.row, [[novo ? FEITO_TXT : '']]);
+    }).then(function () {
+      l.feito = novo; marcaFeito(novo); toast(novo ? 'Serviço marcado como feito.' : 'Voltou para pendente.');
+      return lerAgora();
+    }).catch(function (e) { toast(writeErr(e), true); marcaFeito(l.feito); lerAgora().catch(function () {}); });
+  };
   $('dCancelAppt').onclick = function () {
     var b = $('dCancelAppt');
     if (!$('dConfirm').innerHTML) { $('dConfirm').innerHTML = '<div class="confirm">A vaga volta a ficar livre na planilha. Toque de novo para confirmar.</div>'; b.textContent = 'Confirmar cancelamento'; return; }
